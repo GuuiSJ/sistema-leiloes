@@ -17,7 +17,7 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, nex
       : 500;
 
   if (status === 500) {
-    console.error(error);
+    console.error("Erro interno ao processar requisição.");
   }
 
   const message = status === 500
