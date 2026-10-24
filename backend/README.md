@@ -1,5 +1,11 @@
 # Backend — Sistema de Leilões
 
+## Consultas FIPE
+
+Consultas públicas à BrasilAPI em `/api/fipe`, com timeout e validação, sem
+persistência ou nova configuração de ambiente:
+[`docs/integracao-fipe.md`](../docs/integracao-fipe.md).
+
 ## Gerenciamento de leilões
 
 API pública de listagem/consulta e criação, edição e cancelamento restritos ao

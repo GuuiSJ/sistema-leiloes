@@ -13,6 +13,7 @@ if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
 
 let server: Server | undefined;
 let shuttingDown = false;
+let startupStage: "jwt" | "database" | "http" = "jwt";
 
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
@@ -48,12 +49,14 @@ process.once("SIGTERM", stop);
 
 async function start(): Promise<void> {
   getAuthConfig();
+  startupStage = "database";
   await connectDatabase();
   if (shuttingDown) {
     await disconnectDatabase();
     return;
   }
 
+  startupStage = "http";
   await new Promise<void>((resolve, reject) => {
     server = app.listen(PORT, (error?: Error) => error ? reject(error) : resolve());
     server.once("error", reject);
@@ -61,12 +64,18 @@ async function start(): Promise<void> {
   console.log(`Servidor rodando na porta ${PORT}`);
 }
 
-void start().catch(async () => {
-  console.error(
-    process.env.DATABASE_URL
-      ? "Falha ao iniciar a API. Verifique JWT_SECRET, JWT_EXPIRES_IN, PostgreSQL, DATABASE_URL e PORT."
-      : "DATABASE_URL não configurada. Configure backend/.env para iniciar a API.",
-  );
+void start().catch(async (error: unknown) => {
+  if (startupStage === "jwt") {
+    console.error("Configuração JWT inválida. Verifique JWT_SECRET (mínimo de 32 bytes) e JWT_EXPIRES_IN (inteiro positivo em segundos).");
+  } else if (startupStage === "database") {
+    console.error(process.env.DATABASE_URL
+      ? "Falha ao conectar ao PostgreSQL. Verifique o serviço e DATABASE_URL."
+      : "DATABASE_URL não configurada. Configure backend/.env para iniciar a API.");
+  } else if (error instanceof Error && "code" in error && error.code === "EADDRINUSE") {
+    console.error(`A porta ${PORT} já está em uso. Utilize a API existente ou encerre o processo anterior antes de iniciar outra instância.`);
+  } else {
+    console.error(`Falha ao abrir a porta ${PORT}. Verifique sua disponibilidade e as permissões do processo.`);
+  }
   process.exitCode = 1;
   try {
     await shutdown();

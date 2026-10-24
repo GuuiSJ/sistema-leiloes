@@ -13,7 +13,7 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, nex
     typeof error.status === "number" &&
     Number.isInteger(error.status) &&
     error.status >= 400 &&
-    error.status < 500
+    (error.status < 500 || (error instanceof HttpError && error.status <= 599))
       ? error.status
       : 500;
 
