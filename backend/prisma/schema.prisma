@@ -8,4 +8,269 @@ datasource db {
   provider = "postgresql"
 }
 
-// Os modelos serão definidos em uma próxima etapa.
+enum UserRole {
+  AUCTIONEER
+  BIDDER
+}
+
+enum AuctionStatus {
+  DRAFT
+  SCHEDULED
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum LotStatus {
+  PENDING
+  OPEN
+  SOLD
+  UNSOLD
+  CANCELLED
+}
+
+enum WalletTransactionType {
+  CREDIT
+  RESERVE
+  RELEASE
+  DEBIT
+}
+
+enum BidReservationStatus {
+  ACTIVE
+  RELEASED
+  CAPTURED
+}
+
+enum AuditAction {
+  AUCTION_CREATED
+  AUCTION_UPDATED
+  AUCTION_OPENED
+  AUCTION_CLOSED
+  AUCTION_CANCELLED
+  LOT_CREATED
+  LOT_OPENED
+  LOT_CLOSED
+  LOT_CANCELLED
+  BID_PLACED
+  WALLET_CREDITED
+  FUNDS_RESERVED
+  FUNDS_RELEASED
+  FUNDS_DEBITED
+  RECEIPT_ISSUED
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(120)
+  email        String   @unique @db.VarChar(254)
+  passwordHash String   @db.VarChar(255)
+  role         UserRole
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+
+  auctions    Auction[]        @relation("AuctionOrganizer")
+  wonLots     Lot[]            @relation("LotWinner")
+  bids        Bid[]
+  wallet      Wallet?
+  receipts    AuctionReceipt[] @relation("ReceiptWinner")
+  auditEvents AuditEvent[]     @relation("AuditAuthor")
+
+  @@index([role])
+}
+
+model Vehicle {
+  id                 String    @id @default(uuid()) @db.Uuid
+  brand              String    @db.VarChar(100)
+  model              String    @db.VarChar(150)
+  year               Int
+  version            String?   @db.VarChar(150)
+  description        String?   @db.Text
+  imageUrls          String[]  @default([])
+  fipeCode           String?   @db.VarChar(30)
+  fipeBrandCode      String?   @db.VarChar(30)
+  fipeModelCode      String?   @db.VarChar(30)
+  fipeYearCode       String?   @db.VarChar(30)
+  fipeReferenceMonth String?   @db.VarChar(50)
+  fipeReferencePrice Decimal?  @db.Decimal(18, 2)
+  fipeConsultedAt    DateTime? @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @db.Timestamptz(3)
+
+  lots Lot[]
+
+  @@index([brand, model, year])
+  @@index([fipeCode])
+}
+
+model Auction {
+  id          String        @id @default(uuid()) @db.Uuid
+  organizerId String        @db.Uuid
+  title       String        @db.VarChar(150)
+  description String?       @db.Text
+  startsAt    DateTime      @db.Timestamptz(3)
+  endsAt      DateTime      @db.Timestamptz(3)
+  status      AuctionStatus @default(DRAFT)
+  createdAt   DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @db.Timestamptz(3)
+
+  organizer User  @relation("AuctionOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
+  lots      Lot[]
+
+  @@index([organizerId, createdAt])
+  @@index([status, startsAt])
+  @@index([status, endsAt])
+}
+
+model Lot {
+  id               String    @id @default(uuid()) @db.Uuid
+  auctionId        String    @db.Uuid
+  vehicleId        String    @db.Uuid
+  number           Int
+  startingPrice    Decimal   @db.Decimal(18, 2)
+  minimumIncrement Decimal   @db.Decimal(18, 2)
+  status           LotStatus @default(PENDING)
+  winnerId         String?   @db.Uuid
+  // Incrementado nas futuras operações atômicas para controle otimista.
+  version          Int       @default(0)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(3)
+
+  auction      Auction          @relation(fields: [auctionId], references: [id], onDelete: Restrict)
+  vehicle      Vehicle          @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  winner       User?            @relation("LotWinner", fields: [winnerId], references: [id], onDelete: Restrict)
+  bids         Bid[]
+  reservations BidReservation[]
+  receipt      AuctionReceipt?
+
+  @@unique([auctionId, number])
+  @@unique([auctionId, vehicleId])
+  @@index([auctionId, status])
+  @@index([vehicleId])
+  @@index([winnerId])
+}
+
+model Bid {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  lotId     String   @db.Uuid
+  amount    Decimal  @db.Decimal(18, 2)
+  // Sequência por lote, atribuída atomicamente na futura operação de lance.
+  sequence  Int
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  lot         Lot             @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  reservation BidReservation?
+  receipt     AuctionReceipt?
+
+  // Permite FKs compostas que conferem usuário e lote de um lance.
+  @@unique([id, lotId, userId])
+  @@unique([lotId, sequence])
+  @@index([lotId, amount(sort: Desc), createdAt])
+  @@index([userId, createdAt])
+}
+
+model Wallet {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
+  // Saldo total: disponível = balance - SUM(reservas ACTIVE.amount).
+  balance   Decimal  @default(0) @db.Decimal(18, 2)
+  version   Int      @default(0)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  transactions WalletTransaction[]
+  reservations BidReservation[]
+
+  @@unique([id, userId])
+}
+
+model WalletTransaction {
+  id             String                @id @default(uuid()) @db.Uuid
+  walletId       String                @db.Uuid
+  reservationId  String?               @db.Uuid
+  type           WalletTransactionType
+  // Valor positivo; o tipo determina o efeito sobre o saldo ou a reserva.
+  amount         Decimal               @db.Decimal(18, 2)
+  balanceAfter   Decimal               @db.Decimal(18, 2)
+  idempotencyKey String                @unique @db.VarChar(120)
+  createdAt      DateTime              @default(now()) @db.Timestamptz(3)
+
+  wallet      Wallet          @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  reservation BidReservation? @relation(fields: [reservationId, walletId], references: [id, walletId], onDelete: Restrict)
+
+  @@index([walletId, createdAt])
+  @@index([reservationId, walletId])
+}
+
+model BidReservation {
+  id        String               @id @default(uuid()) @db.Uuid
+  walletId  String               @db.Uuid
+  userId    String               @db.Uuid
+  lotId     String               @db.Uuid
+  bidId     String               @unique @db.Uuid
+  amount    Decimal              @db.Decimal(18, 2)
+  status    BidReservationStatus @default(ACTIVE)
+  createdAt DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime             @updatedAt @db.Timestamptz(3)
+
+  // As FKs compostas impedem reserva em carteira de outro usuário/lote.
+  wallet       Wallet              @relation(fields: [walletId, userId], references: [id, userId], onDelete: Restrict)
+  lot          Lot                 @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  bid          Bid                 @relation(fields: [bidId, lotId, userId], references: [id, lotId, userId], onDelete: Restrict)
+  transactions WalletTransaction[]
+
+  // Uma posição por carteira/lote, atualizada nos lances seguintes.
+  @@unique([walletId, lotId])
+  @@unique([id, walletId])
+  @@unique([bidId, lotId, userId])
+  @@index([walletId, status])
+  @@index([lotId, status])
+}
+
+model AuctionReceipt {
+  id             String   @id @default(uuid()) @db.Uuid
+  publicId       String   @unique @default(uuid()) @db.Uuid
+  lotId          String   @unique @db.Uuid
+  winnerId       String   @db.Uuid
+  winningBidId   String   @unique @db.Uuid
+  finalAmount    Decimal  @db.Decimal(18, 2)
+  issuedAt       DateTime @default(now()) @db.Timestamptz(3)
+  // Snapshot sem dados pessoais, para preservar a descrição na emissão.
+  auctionTitle   String   @db.VarChar(150)
+  lotNumber      Int
+  vehicleBrand   String   @db.VarChar(100)
+  vehicleModel   String   @db.VarChar(150)
+  vehicleYear    Int
+  vehicleVersion String?  @db.VarChar(150)
+
+  lot        Lot  @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  winner     User @relation("ReceiptWinner", fields: [winnerId], references: [id], onDelete: Restrict)
+  winningBid Bid  @relation(fields: [winningBidId, lotId, winnerId], references: [id, lotId, userId], onDelete: Restrict)
+
+  @@unique([winningBidId, lotId, winnerId])
+  @@index([winnerId, issuedAt])
+}
+
+model AuditEvent {
+  id           String      @id @default(uuid()) @db.Uuid
+  sequence     BigInt      @unique @default(autoincrement())
+  // Referência privada: não publicar este campo ou dados pessoais do autor.
+  authorId     String?     @db.Uuid
+  action       AuditAction
+  entityType   String      @db.VarChar(60)
+  entityId     String      @db.Uuid
+  occurredAt   DateTime    @default(now()) @db.Timestamptz(3)
+  // Somente dados públicos explicitamente permitidos, sem e-mail, hash de senha ou credenciais.
+  publicData   Json        @default("{}") @db.JsonB
+  previousHash String?     @unique @db.Char(64)
+  currentHash  String      @unique @db.Char(64)
+
+  author User? @relation("AuditAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([entityType, entityId, occurredAt])
+  @@index([authorId, occurredAt])
+  @@index([action, occurredAt])
+}
