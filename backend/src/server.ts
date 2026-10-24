@@ -3,6 +3,7 @@ import "./config/env";
 import app from "./app";
 import type { Server } from "node:http";
 import { connectDatabase, disconnectDatabase } from "./lib/prisma";
+import { getAuthConfig } from "./config/auth";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -46,6 +47,7 @@ process.once("SIGINT", stop);
 process.once("SIGTERM", stop);
 
 async function start(): Promise<void> {
+  getAuthConfig();
   await connectDatabase();
   if (shuttingDown) {
     await disconnectDatabase();
@@ -62,7 +64,7 @@ async function start(): Promise<void> {
 void start().catch(async () => {
   console.error(
     process.env.DATABASE_URL
-      ? "Falha ao iniciar a API. Verifique PostgreSQL, DATABASE_URL e a disponibilidade de PORT."
+      ? "Falha ao iniciar a API. Verifique JWT_SECRET, JWT_EXPIRES_IN, PostgreSQL, DATABASE_URL e PORT."
       : "DATABASE_URL não configurada. Configure backend/.env para iniciar a API.",
   );
   process.exitCode = 1;

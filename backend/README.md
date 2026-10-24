@@ -1,5 +1,13 @@
 # Backend — Sistema de Leilões
 
+## Autenticação
+
+Cadastro público de arrematantes, login JWT e consulta do usuário autenticado:
+[`docs/autenticacao.md`](../docs/autenticacao.md). Configure `JWT_SECRET`
+(pelo menos 32 bytes aleatórios) e `JWT_EXPIRES_IN` (segundos, padrão `3600`)
+no `.env` antes de iniciar a API. Cadastro público de leiloeiros é bloqueado.
+Execute `npm test` para os testes automatizados de autenticação.
+
 ## Execução local
 
 Na pasta `backend`, instale as dependências com `npm ci`, copie

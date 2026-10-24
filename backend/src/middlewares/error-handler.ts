@@ -1,4 +1,5 @@
 import type { ErrorRequestHandler } from "express";
+import { HttpError } from "../errors/http-error";
 
 export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, next) => {
   if (res.headersSent) {
@@ -20,7 +21,9 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, nex
     console.error("Erro interno ao processar requisição.");
   }
 
-  const message = status === 500
+  const message = error instanceof HttpError && status !== 500
+    ? error.message
+    : status === 500
     ? "Erro interno do servidor."
     : status === 400
       ? "Requisição inválida."
