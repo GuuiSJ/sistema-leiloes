@@ -8,13 +8,14 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit && tsc --project tsconfig.test.json",
-    "test": "node --import tsx --test tests/auth.test.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:migrate:status": "prisma migrate status",
-    "db:check": "tsx src/scripts/check-database.ts"
+    "db:check": "tsx src/scripts/check-database.ts",
+    "user:promote": "tsx src/scripts/promote-auctioneer.ts"
   },
   "keywords": [],
   "author": "",

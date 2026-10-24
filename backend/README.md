@@ -1,5 +1,12 @@
 # Backend — Sistema de Leilões
 
+## Gerenciamento de leilões
+
+API pública de listagem/consulta e criação, edição e cancelamento restritos ao
+leiloeiro responsável: [`docs/gerenciamento-leiloes.md`](../docs/gerenciamento-leiloes.md).
+O documento inclui regras, paginação e exemplos Postman. Nenhuma variável de
+ambiente adicional é necessária além da configuração de autenticação e banco.
+
 ## Autenticação
 
 Cadastro público de arrematantes, login JWT e consulta do usuário autenticado:
