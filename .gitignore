@@ -5,6 +5,7 @@ node_modules/
 dist/
 build/
 coverage/
+backend/src/generated/prisma/
 
 # Variáveis de ambiente
 .env

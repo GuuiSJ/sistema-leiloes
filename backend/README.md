@@ -39,7 +39,10 @@ Prisma CLI, Client e adaptador PostgreSQL estão fixados em `7.10.1`.
 O Node.js validado neste projeto é `24.18.0`, compatível com essa versão.
 O projeto mantém CommonJS; o gerador `prisma-client` usa `moduleFormat = "cjs"`.
 
-`prisma/schema.prisma` configura PostgreSQL, sem modelos de negócio.
+`prisma/schema.prisma` configura PostgreSQL e os modelos iniciais do domínio.
+As relações, decisões e limites da modelagem estão em
+[`docs/modelagem-banco.md`](../docs/modelagem-banco.md). Os modelos somente serão
+criados no banco após aprovação e execução de uma migração.
 `prisma.config.ts` carrega o ambiente e informa a conexão à CLI.
 `src/lib/prisma.ts` disponibiliza uma única instância pelo método `getPrisma()`.
 O client gerado em `src/generated/prisma` é ignorado pelo Git e deve ser
@@ -69,7 +72,9 @@ Comandos na pasta `backend`:
 - `npm run prisma:migrate:deploy`: aplica migrações existentes; executar somente
   quando houver migrações revisadas e autorização para alterar o banco.
 
-Nenhuma migração foi criada ou executada nesta configuração.
+A migração `20261024111646_init_modelagem` está preparada em `prisma/migrations`,
+mas não foi aplicada. Após aprovação, `npm run prisma:migrate:deploy` aplica
+as migrações pendentes. Consulte a documentação da modelagem antes de executar.
 Validação e geração podem ser feitas sem `DATABASE_URL`; comandos de conexão e
 migração exigem uma URL válida.
 
