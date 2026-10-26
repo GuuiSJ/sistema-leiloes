@@ -75,12 +75,14 @@ model User {
   wallet      Wallet?
   receipts    AuctionReceipt[] @relation("ReceiptWinner")
   auditEvents AuditEvent[]     @relation("AuditAuthor")
+  vehicles    Vehicle[]        @relation("VehicleOwner")
 
   @@index([role])
 }
 
 model Vehicle {
   id                 String    @id @default(uuid()) @db.Uuid
+  ownerId            String    @db.Uuid
   brand              String    @db.VarChar(100)
   model              String    @db.VarChar(150)
   year               Int
@@ -98,9 +100,11 @@ model Vehicle {
   updatedAt          DateTime  @updatedAt @db.Timestamptz(3)
 
   lots Lot[]
+  owner User @relation("VehicleOwner", fields: [ownerId], references: [id], onDelete: Restrict)
 
   @@index([brand, model, year])
   @@index([fipeCode])
+  @@index([ownerId])
 }
 
 model Auction {
