@@ -44,7 +44,7 @@ describe("Lotes HTTP (JWT real, repositório em memória)", () => {
       const number = input.number ?? lot!.number;
       if ([...rows.values()].some(row => row.auctionId === command.auctionId && row.id !== lot?.id && (row.number === number || row.vehicleId === selectedId))) throw new HttpError(409, "Lote duplicado.");
       const result: LotRecord = {
-        id: lot?.id ?? randomUUID(), auctionId: command.auctionId, vehicleId: selectedId, vehicle, number,
+        id: lot?.id ?? randomUUID(), auctionId: command.auctionId, vehicleId: selectedId, vehicle, auction, number, endsAt: lot?.endsAt ?? null,
         startingPrice: new Prisma.Decimal(input.startingPrice ?? lot!.startingPrice),
         minimumIncrement: new Prisma.Decimal(command.operation === "create" ? command.input.minimumIncrement : lot!.minimumIncrement),
         status: lot?.status ?? "PENDING", winnerId: lot?.winnerId ?? null,
@@ -131,7 +131,7 @@ describe("Lotes HTTP (JWT real, repositório em memória)", () => {
   });
   it("rejeita campos extras, IDs internos, dono e status", async () => {
     const lot = await create();
-    for (const field of ["id", "auctionId", "ownerId", "organizerId", "status", "winnerId", "version", "bids", "unknown"]) {
+    for (const field of ["id", "auctionId", "ownerId", "organizerId", "status", "winnerId", "version", "endsAt", "bids", "unknown"]) {
       assert.equal((await request("POST", "", { ...payload(), [field]: "forjado" }, ownerId)).status, 400);
       assert.equal((await request("PATCH", `/${lot.id}`, { [field]: "forjado" }, ownerId)).status, 400);
     }

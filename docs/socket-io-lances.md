@@ -78,6 +78,27 @@ Falhas de transmissão são isoladas e registradas somente com mensagem genéric
 
 ## Teste com dois clientes
 
+### Evento adicional: `lot:extended`
+
+O anti-sniping publica este evento depois de `bid:created`, somente após commit e somente se o prazo efetivo do lote realmente aumentou:
+
+```json
+{
+  "lotId": "11111111-1111-4111-8111-111111111111",
+  "previousEndsAt": "2026-10-26T16:20:00.000Z",
+  "endsAt": "2026-10-26T16:21:00.000Z",
+  "triggerBidId": "22222222-2222-4222-8222-222222222222"
+}
+```
+
+Vai à mesma sala `lot:<lotId>`, sem dados privados. Replay, rejeição e rollback não o emitem. No limite exato de dois minutos, o prazo já garante a janela completa: não há alteração nem evento. O script `socket:client` também imprime `lot:extended`; em um cliente próprio:
+
+```javascript
+socket.on("lot:extended", event => console.log("Novo prazo:", event));
+```
+
+A notificação não é persistida. Depois de reconectar, recupere o prazo atualizado pelo campo público `endsAt` em GET `/api/auctions/:auctionId/lots/:lotId` ou na listagem de lotes. GET do leilão continua mostrando o prazo-base. REST é a fonte de verdade; a falha de transmissão não reverte o lance ou a prorrogação. Regra e roteiro manual em [anti-sniping.md](anti-sniping.md).
+
 O script pronto fica em `backend/src/scripts/test-socket-client.ts`, seguindo a estrutura existente. `socket.io-client` já está instalado como dependência de desenvolvimento. Inicie o backend conectado ao PostgreSQL real e execute, na pasta `backend`, em **dois terminais separados**:
 
 ```powershell
@@ -154,7 +175,7 @@ Ao entrar/reconectar, instale o listener, aguarde o ACK do join e consulte `GET 
 
 Esta implementação é para **uma instância do backend**. Não há adapter compartilhado, fila distribuída ou garantia de ordem entre múltiplos processos/servidores. Todos os lances e assinantes devem chegar à mesma instância para a transmissão funcionar como descrito. Escalar a entrega com garantias maiores exigirá um projeto posterior; nenhuma migração foi criada.
 
-Enviar `bid:created`, `bid:create` ou outro evento pelo cliente não cria nem retransmite lances. Não há Socket.IO para encerramento, liquidação ou anti-sniping.
+Enviar `bid:created`, `lot:extended`, `bid:create` ou outro evento pelo cliente não cria lances, não altera prazos nem retransmite eventos. Socket.IO apenas transmite o resultado do anti-sniping calculado no REST. Não há encerramento ou liquidação por socket.
 
 ## Testes
 
@@ -170,6 +191,7 @@ Regressão completa com PostgreSQL real, sem modificar `.env`:
 
 ```powershell
 $env:SOCKET_DATABASE_TESTS = '1'
+$env:ANTI_SNIPING_DATABASE_TESTS = '1'
 $env:AUCTION_LIFECYCLE_DATABASE_TESTS = '1'
 $env:BID_DATABASE_TESTS = '1'
 $env:WALLET_DATABASE_TESTS = '1'
@@ -177,6 +199,7 @@ $env:LOT_DATABASE_TESTS = '1'
 $env:VEHICLE_DATABASE_TESTS = '1'
 try { npm.cmd run test:integration } finally {
   Remove-Item Env:SOCKET_DATABASE_TESTS
+  Remove-Item Env:ANTI_SNIPING_DATABASE_TESTS
   Remove-Item Env:AUCTION_LIFECYCLE_DATABASE_TESTS
   Remove-Item Env:BID_DATABASE_TESTS
   Remove-Item Env:WALLET_DATABASE_TESTS
@@ -187,4 +210,4 @@ try { npm.cmd run test:integration } finally {
 
 Os testes usam clientes Socket.IO reais, polling/WebSocket, HTTP REST e JWT reais. As integrações financeiras usam tabelas descartáveis com prefixo exclusivo e mantêm uma transação aberta antes do commit para verificar ausência de emissão antecipada. Também forçam rollback após as gravações e conferem ordem, idempotência e ausência de movimentos persistidos. A cadeia e os registros preexistentes não recebem eventos de teste.
 
-Resultado desta entrega: **400 testes aprovados**, sendo 331 sem banco e 69 com PostgreSQL real; typecheck e build aprovados. Foram acrescentados 21 testes (14 de Socket.IO/HTTP, 4 de fila/publicação e 3 com banco). A comparação final das contagens e resumos dos registros confirmou dados preexistentes intactos, sem tabelas descartáveis restantes.
+Resultado atualizado ap?s anti-sniping: **422 testes aprovados**, sendo 339 sem banco e 83 com PostgreSQL real; valida??o Prisma, typecheck e build aprovados. A compara??o final das contagens e resumos dos registros confirmou dados preexistentes intactos, sem tabelas descart?veis restantes.

@@ -33,7 +33,7 @@ export async function withLifecycleDatabase(check: (client: PrismaClient) => Pro
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 8, connectionTimeoutMillis: 5000 });
   let client: PrismaClient | undefined;
   try {
-    for (const migration of ["20261024111646_init_modelagem", "20261026120000_vehicle_owner"]) {
+    for (const migration of ["20261024111646_init_modelagem", "20261026120000_vehicle_owner", "20261027000000_lot_ends_at"]) {
       await pool.query(rewrite(await readFile(resolve(__dirname, "../../prisma/migrations", migration, "migration.sql"), "utf8")));
     }
     const factory = new PrismaPg(pool);

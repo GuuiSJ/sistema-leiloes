@@ -6,9 +6,25 @@ export interface BidCreatedEvent {
   sequence: number;
 }
 type Listener = (event: Readonly<BidCreatedEvent>) => void | Promise<void>;
+export interface LotExtendedEvent { lotId: string; previousEndsAt: string; endsAt: string; triggerBidId: string }
+type ExtensionListener = (event: Readonly<LotExtendedEvent>) => void | Promise<void>;
 
 export class BidEventBus {
   private readonly listeners = new Set<Listener>();
+  private readonly extensionListeners = new Set<ExtensionListener>();
+  subscribeExtensions(listener: ExtensionListener): () => void {
+    this.extensionListeners.add(listener);
+    return () => { this.extensionListeners.delete(listener); };
+  }
+  publishExtended(event: LotExtendedEvent): void {
+    const payload = Object.freeze({ lotId: event.lotId, previousEndsAt: event.previousEndsAt, endsAt: event.endsAt, triggerBidId: event.triggerBidId });
+    for (const listener of this.extensionListeners) {
+      try {
+        const pending = listener(payload);
+        if (pending) void Promise.resolve(pending).catch(() => console.error("Falha ao transmitir prorrogação pública de lote."));
+      } catch { console.error("Falha ao transmitir prorrogação pública de lote."); }
+    }
+  }
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
     return () => { this.listeners.delete(listener); };

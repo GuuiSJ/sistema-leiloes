@@ -135,6 +135,7 @@ model Lot {
   minimumIncrement Decimal   @db.Decimal(18, 2)
   status           LotStatus @default(PENDING)
   winnerId         String?   @db.Uuid
+  endsAt           DateTime? @db.Timestamptz(3)
   // Incrementado nas futuras operações atômicas para controle otimista.
   version          Int       @default(0)
   createdAt        DateTime  @default(now()) @db.Timestamptz(3)

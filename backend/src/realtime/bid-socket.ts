@@ -3,14 +3,14 @@ import { Server } from "socket.io";
 import { frontendOrigin } from "../config/http";
 import { getPrisma } from "../lib/prisma";
 import { validateId } from "../modules/bids/bid.validation";
-import { bidEvents, type BidEventBus, type BidCreatedEvent } from "./bid-events";
+import { bidEvents, type BidEventBus, type BidCreatedEvent, type LotExtendedEvent } from "./bid-events";
 
 export type RoomAck = { ok: true; lotId: string } | { ok: false; error: { code: string; message: string } };
 interface ClientEvents {
   "lot:join": (payload: unknown, ack?: (result: RoomAck) => void) => void;
   "lot:leave": (payload: unknown, ack?: (result: RoomAck) => void) => void;
 }
-interface ServerEvents { "bid:created": (event: Readonly<BidCreatedEvent>) => void }
+interface ServerEvents { "bid:created": (event: Readonly<BidCreatedEvent>) => void; "lot:extended": (event: Readonly<LotExtendedEvent>) => void }
 interface Options {
   events?: BidEventBus;
   lotExists?: (lotId: string) => Promise<boolean>;
@@ -26,7 +26,8 @@ export function attachBidSocket(server: HttpServer, options: Options = {}) {
   });
   const exists = options.lotExists ?? (async id => !!await getPrisma().lot.findUnique({ where: { id }, select: { id: true } }));
   const unsubscribe = (options.events ?? bidEvents).subscribe(payload => { io.to(`lot:${payload.lotId}`).emit("bid:created", payload); });
-  server.once("close", unsubscribe);
+  const unsubscribeExtensions = (options.events ?? bidEvents).subscribeExtensions(payload => { io.to(`lot:${payload.lotId}`).emit("lot:extended", payload); });
+  server.once("close", () => { unsubscribe(); unsubscribeExtensions(); });
   io.on("connection", socket => {
     const subscriptions = new Set<string>();
     let windowStart = Date.now(), operations = 0, pending = 0;

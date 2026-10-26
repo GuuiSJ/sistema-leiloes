@@ -16,7 +16,7 @@ export class AuctionLifecycleService {
     }
     const eligible = lots.filter(lot => lot.status !== "CANCELLED");
     if (!eligible.length) throw new HttpError(409, "Leilão precisa de ao menos um lote válido não cancelado.");
-    if (eligible.some(lot => lot.status !== "PENDING" || lot.winnerId !== null || lot.hasFinancialHistory || lot.vehicleOwnerId !== authorId || lot.number < 1 || !lot.startingPrice.greaterThan(0) || !lot.minimumIncrement.greaterThan(0) || lot.version < 0 || lot.version >= 2147483647)) {
+    if (eligible.some(lot => lot.status !== "PENDING" || lot.endsAt != null || lot.winnerId !== null || lot.hasFinancialHistory || lot.vehicleOwnerId !== authorId || lot.number < 1 || !lot.startingPrice.greaterThan(0) || !lot.minimumIncrement.greaterThan(0) || lot.version < 0 || lot.version >= 2147483647)) {
       throw new HttpError(409, "Leilão possui lote incompatível, histórico financeiro ou veículo de outro proprietário.");
     }
     return { status, openLotIds: operation === "open" ? eligible.map(lot => lot.id) : [], unchanged: false };

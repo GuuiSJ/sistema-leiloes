@@ -1,12 +1,14 @@
 import { HttpError } from "../../errors/http-error";
 import { publicVehicle } from "../vehicles/vehicle.service";
 import type { LotInput, LotPatch, LotQuery, LotRecord, LotRepository, LotWriteState } from "./lot.types";
+import { effectiveLotEndsAt } from "./lot-deadline";
 
 function publicLot(lot: LotRecord) {
   return {
     id: lot.id, auctionId: lot.auctionId, vehicleId: lot.vehicleId,
     number: lot.number, startingPrice: lot.startingPrice.toFixed(2),
     minimumIncrement: lot.minimumIncrement.toFixed(2), status: lot.status,
+    endsAt: effectiveLotEndsAt(lot, lot.auction),
     createdAt: lot.createdAt, updatedAt: lot.updatedAt, vehicle: publicVehicle(lot.vehicle),
   };
 }

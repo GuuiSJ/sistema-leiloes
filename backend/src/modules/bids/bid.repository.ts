@@ -3,6 +3,7 @@ import { Prisma, type PrismaClient } from "../../generated/prisma/client";
 import { HttpError } from "../../errors/http-error";
 import { getPrisma } from "../../lib/prisma";
 import type { BidRepository } from "./bid.types";
+import { effectiveLotEndsAt, extendedDeadline } from "../lots/lot-deadline";
 
 function inconsistent(): never { throw new HttpError(409, "Estado financeiro inconsistente. Lance não registrado."); }
 
@@ -104,8 +105,10 @@ export function createBidRepository(client: () => PrismaClient = getPrisma): Bid
               : await tx.bidReservation.create({ data: { walletId: own.id, userId, lotId, bidId: bid.id, amount, status: "ACTIVE" } });
             await tx.walletTransaction.create({ data: { walletId: own.id, reservationId: reservation.id, type: "RESERVE", amount: delta, balanceAfter: own.balance, idempotencyKey: `${requestPrefix}${bid.id}` } });
             await tx.wallet.update({ where: { id: own.id }, data: { version: { increment: 1 } } });
-            await tx.lot.update({ where: { id: lotId }, data: { version: { increment: 1 } } });
-            return { bid, replayed: false };
+            const previousEndsAt = effectiveLotEndsAt(lot, auction);
+            const endsAt = extendedDeadline(previousEndsAt, now);
+            await tx.lot.update({ where: { id: lotId }, data: { version: { increment: 1 }, ...(endsAt ? { endsAt } : {}) } });
+            return { bid, replayed: false, ...(endsAt ? { extension: { lotId, previousEndsAt, endsAt, triggerBidId: bid.id } } : {}) };
           }, { isolationLevel: "Serializable" });
         } catch (error: unknown) {
           if (error instanceof Prisma.PrismaClientKnownRequestError) {

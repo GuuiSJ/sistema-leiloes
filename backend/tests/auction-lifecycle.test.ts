@@ -43,7 +43,7 @@ describe("Agendamento e abertura HTTP (JWT real)", () => {
     now = new Date(); auditCount = 0; failAudit = false; users.clear();
     for (const id of [ownerId, otherId, bidderId]) users.set(id, { id, name: "Privado", email: "private@example.com", role: id === bidderId ? "BIDDER" : "AUCTIONEER", createdAt: now });
     auction = { id: auctionId, organizerId: ownerId, title: "Fixture", description: null, status: "DRAFT", startsAt: new Date(now.getTime() + 86400000), endsAt: new Date(now.getTime() + 172800000), createdAt: now, updatedAt: now };
-    lots = [1, 2].map(number => ({ id: randomUUID(), auctionId, vehicleId: randomUUID(), number, startingPrice: new Prisma.Decimal(100), minimumIncrement: new Prisma.Decimal(10), status: "PENDING", winnerId: null, version: 0, createdAt: now, updatedAt: now, vehicleOwnerId: ownerId, hasFinancialHistory: false }));
+    lots = [1, 2].map(number => ({ id: randomUUID(), auctionId, vehicleId: randomUUID(), number, startingPrice: new Prisma.Decimal(100), minimumIncrement: new Prisma.Decimal(10), status: "PENDING", winnerId: null, endsAt: null, version: 0, createdAt: now, updatedAt: now, vehicleOwnerId: ownerId, hasFinancialHistory: false }));
   });
   after(async () => { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(e => e ? reject(e) : resolve())); });
   async function request(operation: "schedule" | "open", user: string = ownerId, body?: unknown, id: string = auctionId, query = "") {
@@ -120,5 +120,11 @@ describe("Agendamento e abertura HTTP (JWT real)", () => {
     await request("schedule"); now = auction.startsAt; failAudit = true;
     const res = await request("open"); assert.equal(res.status, 500); assert.deepEqual(await res.json(), { message: "Erro interno do servidor." });
     assert.equal(auction.status, "SCHEDULED"); assert(lots.every(lot => lot.status === "PENDING")); assert.equal(auditCount, 0);
+  });
+  it("não agenda nem sobrescreve prazo individual inesperado em lote PENDING", async () => {
+    lots[0].endsAt = new Date(auction.endsAt.getTime() + 120000);
+    assert.equal((await request("schedule")).status, 409);
+    auction.status = "SCHEDULED"; now = auction.startsAt; assert.equal((await request("open")).status, 409);
+    assert.equal(lots[0].status, "PENDING"); assert.equal(auditCount, 0);
   });
 });

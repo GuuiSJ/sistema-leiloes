@@ -1,7 +1,7 @@
 import { io } from "socket.io-client";
 import { validateId } from "../modules/lots/lot.validation";
 import type { RoomAck } from "../realtime/bid-socket";
-import type { BidCreatedEvent } from "../realtime/bid-events";
+import type { BidCreatedEvent, LotExtendedEvent } from "../realtime/bid-events";
 
 function main(): void {
   const args = process.argv.slice(2);
@@ -54,6 +54,9 @@ function main(): void {
   });
   socket.on("connect_error", () => {
     console.error("Erro de conexão com http://localhost:3000. Verifique se o backend está ativo; serão feitas até 5 tentativas de reconexão.");
+  });
+  socket.on("lot:extended", (event: LotExtendedEvent) => {
+    console.log("lot:extended", JSON.stringify({ lotId: event.lotId, previousEndsAt: event.previousEndsAt, endsAt: event.endsAt, triggerBidId: event.triggerBidId }, null, 2));
   });
   socket.on("disconnect", reason => { if (!stopping) console.log(`Conexão interrompida (${reason}).`); });
   socket.io.on("reconnect_failed", () => {

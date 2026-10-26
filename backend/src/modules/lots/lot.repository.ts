@@ -9,13 +9,13 @@ export function createLotRepository(client: () => PrismaClient = getPrisma): Lot
       return client().$transaction(async tx => {
         if (!await tx.auction.findUnique({ where: { id: auctionId }, select: { id: true } })) throw new HttpError(404, "Leilão não encontrado.");
         const where = { auctionId };
-        const lots = await tx.lot.findMany({ where, include: { vehicle: true }, skip: (query.page - 1) * query.limit, take: query.limit, orderBy: [{ number: "asc" }, { id: "asc" }] });
+        const lots = await tx.lot.findMany({ where, include: { vehicle: true, auction: { select: { endsAt: true } } }, skip: (query.page - 1) * query.limit, take: query.limit, orderBy: [{ number: "asc" }, { id: "asc" }] });
         const total = await tx.lot.count({ where });
         return { lots, total };
       }, { isolationLevel: "RepeatableRead" });
     },
     findById(auctionId, lotId) {
-      return client().lot.findFirst({ where: { id: lotId, auctionId }, include: { vehicle: true } });
+      return client().lot.findFirst({ where: { id: lotId, auctionId }, include: { vehicle: true, auction: { select: { endsAt: true } } } });
     },
     async write(command, validate) {
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -46,10 +46,10 @@ export function createLotRepository(client: () => PrismaClient = getPrisma): Lot
             const audit = lot ? await tx.auditEvent.findFirst({ where: { entityId: lot.id }, select: { id: true } }) : null;
             validate({ auction, lot, vehicle, currentVehicle, hasHistory: !!lot && (lot._count.bids > 0 || lot._count.reservations > 0 || lot.receipt !== null || audit !== null) });
             if (command.operation === "create") {
-              return tx.lot.create({ data: { ...command.input, auctionId: command.auctionId, status: "PENDING" }, include: { vehicle: true } });
+              return tx.lot.create({ data: { ...command.input, auctionId: command.auctionId, status: "PENDING" }, include: { vehicle: true, auction: { select: { endsAt: true } } } });
             }
-            if (command.operation === "delete") return tx.lot.delete({ where: { id: command.lotId }, include: { vehicle: true } });
-            return tx.lot.update({ where: { id: command.lotId }, data: { ...command.input, version: { increment: 1 } }, include: { vehicle: true } });
+            if (command.operation === "delete") return tx.lot.delete({ where: { id: command.lotId }, include: { vehicle: true, auction: { select: { endsAt: true } } } });
+            return tx.lot.update({ where: { id: command.lotId }, data: { ...command.input, version: { increment: 1 } }, include: { vehicle: true, auction: { select: { endsAt: true } } } });
           }, { isolationLevel: "Serializable" });
         } catch (error: unknown) {
           if (error instanceof Prisma.PrismaClientKnownRequestError) {

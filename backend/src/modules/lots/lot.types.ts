@@ -4,7 +4,7 @@ export interface LotInput { vehicleId: string; number: number; startingPrice: st
 // Increment is fixed after creation in this stage.
 export type LotPatch = Partial<Omit<LotInput, "minimumIncrement">>;
 export interface LotQuery { page: number; limit: number }
-export type LotRecord = Lot & { vehicle: Vehicle };
+export type LotRecord = Lot & { vehicle: Vehicle; auction: Pick<Auction, "endsAt"> };
 export type LotCommand =
   | { operation: "create"; auctionId: string; input: LotInput }
   | { operation: "update"; auctionId: string; lotId: string; input: LotPatch }
