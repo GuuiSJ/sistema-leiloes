@@ -64,7 +64,9 @@ export function createVehicleRepository(client: () => PrismaClient = getPrisma):
         } catch (error: unknown) {
           if (error instanceof Prisma.PrismaClientKnownRequestError) {
             // Raw locking queries can report PostgreSQL serialization/deadlock codes via P2010.
-            const rawConflict = error.code === "P2010" && ["40001", "40P01"].includes(String(error.meta?.code));
+            const adapterError = error.meta?.driverAdapterError as { cause?: { originalCode?: unknown } } | undefined;
+            const sqlState = error.meta?.code ?? adapterError?.cause?.originalCode;
+            const rawConflict = error.code === "P2010" && ["40001", "40P01"].includes(String(sqlState));
             if (error.code === "P2034" || rawConflict) {
               if (attempt < 2) continue;
               throw new HttpError(409, "Veículo alterado simultaneamente. Tente novamente.");

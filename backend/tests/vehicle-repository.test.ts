@@ -15,6 +15,8 @@ describe("Conflitos do repositório de veículos", () => {
     ["serialização Prisma", prismaError("P2034")],
     ["serialização de query raw", prismaError("P2010", { code: "40001" })],
     ["deadlock de query raw", prismaError("P2010", { code: "40P01" })],
+    ["serialização do adapter-pg", prismaError("P2010", { driverAdapterError: { cause: { originalCode: "40001" } } })],
+    ["deadlock do adapter-pg", prismaError("P2010", { driverAdapterError: { cause: { originalCode: "40P01" } } })],
   ] as const) it(`repete ${name} e limita a três tentativas antes de retornar 409`, async () => {
     let attempts = 0;
     const client = { async $transaction(_operation: unknown, options: { isolationLevel: string }) {
