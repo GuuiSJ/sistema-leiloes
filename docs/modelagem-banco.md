@@ -1,5 +1,11 @@
 # Modelagem inicial do banco
 
+Evolução posterior: o gravador mínimo de auditoria para abertura de leilões/lotes
+foi autorizado e implementado sem mudança do schema. Seu contrato está em
+[auditoria-abertura.md](auditoria-abertura.md); as transições controladas estão em
+[gerenciamento-leiloes.md](gerenciamento-leiloes.md). As descrições de implementação
+futura abaixo registram o estado da modelagem inicial.
+
 O schema usa PostgreSQL e Prisma 7.10.1, com dez modelos. Nenhuma migração foi
 aplicada nesta etapa. A primeira migração foi preparada posteriormente, conforme
 descrito abaixo. Os nomes das tabelas seguirão os nomes dos modelos.

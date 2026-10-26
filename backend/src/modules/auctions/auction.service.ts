@@ -2,7 +2,7 @@ import { HttpError } from "../../errors/http-error";
 import type { Auction } from "../../generated/prisma/client";
 import type { AuctionInput, AuctionPage, AuctionPatch, AuctionQuery, AuctionRepository, AuctionView } from "./auction.types";
 
-function publicAuction(auction: Auction): AuctionView {
+export function publicAuction(auction: Auction): AuctionView {
   // Seleção explícita: não serializar organizador ou suas informações pessoais.
   return {
     id: auction.id,
