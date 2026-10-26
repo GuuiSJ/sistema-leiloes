@@ -2,7 +2,7 @@ import { HttpError } from "../../errors/http-error";
 import type { Vehicle } from "../../generated/prisma/client";
 import type { VehicleInput, VehiclePatch, VehicleQuery, VehicleRepository } from "./vehicle.types";
 
-function publicVehicle(v: Vehicle) {
+export function publicVehicle(v: Vehicle) {
   return {
     id: v.id, brand: v.brand, model: v.model, year: v.year, version: v.version,
     description: v.description, imageUrls: v.imageUrls,
