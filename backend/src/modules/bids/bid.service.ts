@@ -2,6 +2,7 @@ import { HttpError } from "../../errors/http-error";
 import { Prisma } from "../../generated/prisma/client";
 import type { BidRecord, BidRepository, BidQuery, BidState } from "./bid.types";
 import { validateCreate, validateKey } from "./bid.validation";
+import { bidEvents, bidExecutionQueue, type BidEventBus, type BidExecutionQueue } from "../../realtime/bid-events";
 
 function publicBid(bid: BidRecord) {
   return { id: bid.id, lotId: bid.lotId, amount: bid.amount.toFixed(2), sequence: bid.sequence, createdAt: bid.createdAt };
@@ -16,11 +17,20 @@ function validateState(state: BidState, amount: Prisma.Decimal, userId: string):
   if (amount.lessThan(minimum)) throw new HttpError(409, "Lance abaixo do valor inicial ou do incremento mínimo.");
 }
 export class BidService {
-  constructor(private readonly repository: BidRepository) {}
+  constructor(private readonly repository: BidRepository, private readonly events: Pick<BidEventBus, "publish"> = bidEvents, private readonly queue: BidExecutionQueue = bidExecutionQueue) {}
   async place(lotId: string, userId: string, rawAmount: string, key: string) {
     const amount = new Prisma.Decimal(validateCreate({ amount: rawAmount }));
-    const result = await this.repository.place(lotId, userId, amount, validateKey(key), state => validateState(state, amount, userId));
-    return { bid: publicBid(result.bid), replayed: result.replayed };
+    const validatedKey = validateKey(key);
+    return this.queue.run(lotId, async () => {
+      // repository.place resolves only after the financial transaction commits.
+      const result = await this.repository.place(lotId, userId, amount, validatedKey, state => validateState(state, amount, userId));
+      const bid = publicBid(result.bid);
+      if (!result.replayed) {
+        try { this.events.publish({ lotId: bid.lotId, bidId: bid.id, amount: bid.amount, createdAt: bid.createdAt.toISOString(), sequence: bid.sequence }); }
+        catch { console.error("Falha ao transmitir atualização pública de lance."); }
+      }
+      return { bid, replayed: result.replayed };
+    });
   }
   async list(lotId: string, query: BidQuery) {
     const { bids, total } = await this.repository.list(lotId, query);
