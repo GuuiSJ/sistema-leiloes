@@ -1,6 +1,6 @@
 # Contrato mínimo da auditoria de abertura
 
-Gravador implementado após autorização explícita para esta etapa, sem migração. Escopo: AUCTION_OPENED e LOT_OPENED. Não há API pública de auditoria, ancoragem externa ou gravação retroativa de eventos dos módulos anteriores.
+Gravador implementado após autorização explícita, sem migração. Além de AUCTION_OPENED e LOT_OPENED, suporta encerramento e liquidação conforme os contratos abaixo. Não há API pública de auditoria, ancoragem externa ou gravação retroativa de eventos dos módulos anteriores.
 
 ## Campos e privacidade
 
@@ -12,6 +12,10 @@ Lista permitida de `publicData`, sem campos adicionais:
 |---|---|
 | AUCTION_OPENED / Auction | `formatVersion: 1`, `status: "OPEN"`, `lotIds`: UUIDs dos lotes efetivamente abertos, únicos e ordenados |
 | LOT_OPENED / Lot | `formatVersion: 1`, `status: "OPEN"`, `auctionId`: UUID, `number`: inteiro positivo |
+| LOT_CLOSED / Lot | `formatVersion: 1`, `status: "SOLD"` ou `"UNSOLD"`, `auctionId`: UUID |
+| FUNDS_DEBITED / Lot | `formatVersion: 1`, `status: "SOLD"`, `auctionId`: UUID |
+| RECEIPT_ISSUED / Lot | `formatVersion: 1`, `status: "SOLD"`, `auctionId`: UUID |
+| AUCTION_CLOSED / Auction | `formatVersion: 1`, `status: "CLOSED"` |
 
 Nome, e-mail, hashes de senha, tokens, credenciais, saldo, carteira e URLs não entram nos dados públicos. A lista permitida é validada antes da gravação e na verificação dos eventos existentes.
 
@@ -54,3 +58,11 @@ O módulo não cria eventos de abertura em cancelamentos, agendamentos ou reenvi
 A cadeia detecta conteúdo ou elos alterados quando comparados ao histórico armazenado, mas não impede que um administrador reescreva a cadeia inteira ou remova seu final. Imutabilidade por privilégios, ancoragem externa e publicação do hash final permanecem etapas separadas. Não foram alteradas permissões do banco nesta entrega.
 
 Todos os futuros gravadores devem seguir o mesmo protocolo de bloqueio, formato versionado, seleção pública e transação. Escritas diretas em AuditEvent fora desse protocolo podem tornar a cadeia incompatível e bloquear novas aberturas; exigem revisão administrativa, sem reparo automático.
+
+## Encerramento e liquidação
+
+O worker usa `prepareAuditWriter` do mesmo módulo da abertura. Eventos automáticos possuem `authorId: null`. As ações FUNDS_DEBITED e RECEIPT_ISSUED referenciam o lote, sem publicar IDs de carteira, reserva, participante ou movimentação, nem saldo. Os detalhes privados permanecem nas tabelas financeiras e no comprovante autenticado.
+
+A ordem de bloqueios é Auction → Lot → carteira → AuditEvent. No encerramento grava-se LOT_CLOSED e, para venda, FUNDS_DEBITED e RECEIPT_ISSUED; se todos os lotes forem terminais, AUCTION_CLOSED. Tudo compartilha a transação Serializable da captura. Cadeia inválida causa rollback do débito, reserva, resultado e comprovante. Reprocessamentos não criam novos eventos.
+
+Os hashes e a serialização de aberturas antigas permanecem exatamente iguais. O verificador agora aceita a cadeia mista, mantendo listas de campos estritas por ação. Um vetor SHA-256 fixo protege a compatibilidade do formato antigo; testes PostgreSQL verificam abertura → encerramento → nova abertura, concorrência e bloqueio após adulteração. A sequência pode ter lacunas por rollback, preservando seu crescimento estrito. Veja [encerramento-liquidacao.md](encerramento-liquidacao.md).

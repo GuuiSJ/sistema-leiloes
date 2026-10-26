@@ -59,6 +59,8 @@ function main(): void {
     console.log("lot:extended", JSON.stringify({ lotId: event.lotId, previousEndsAt: event.previousEndsAt, endsAt: event.endsAt, triggerBidId: event.triggerBidId }, null, 2));
   });
   socket.on("disconnect", reason => { if (!stopping) console.log(`Conexão interrompida (${reason}).`); });
+  socket.on("lot:closed", event => { console.log("lot:closed", JSON.stringify(event, null, 2)); });
+  socket.on("auction:closed", event => { console.log("auction:closed", JSON.stringify(event, null, 2)); });
   socket.io.on("reconnect_failed", () => {
     console.error("Não foi possível reconectar após 5 tentativas.");
     process.exitCode = 1;

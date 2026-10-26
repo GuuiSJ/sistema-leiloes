@@ -6,6 +6,8 @@ import type { Server as SocketServer } from "socket.io";
 import { attachBidSocket } from "./realtime/bid-socket";
 import { connectDatabase, disconnectDatabase } from "./lib/prisma";
 import { getAuthConfig } from "./config/auth";
+import { SettlementWorker } from "./workers/settlement-worker";
+import { createSettlementRepository } from "./modules/settlement/settlement.repository";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -15,6 +17,7 @@ if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
 
 let server: Server | undefined;
 let realtime: SocketServer | undefined;
+let settlementWorker: SettlementWorker | undefined;
 let shuttingDown = false;
 let startupStage: "jwt" | "database" | "http" = "jwt";
 
@@ -23,6 +26,7 @@ async function shutdown(): Promise<void> {
   shuttingDown = true;
 
   try {
+    await settlementWorker?.stop();
     if (server?.listening) {
       const activeServer = server;
       const timeout = setTimeout(() => activeServer.closeAllConnections(), 10000);
@@ -70,6 +74,7 @@ async function start(): Promise<void> {
     server!.once("error", reject);
   });
   console.log(`Servidor rodando na porta ${PORT}`);
+  if (!shuttingDown) { settlementWorker = new SettlementWorker(createSettlementRepository()); settlementWorker.start(); }
 }
 
 void start().catch(async (error: unknown) => {

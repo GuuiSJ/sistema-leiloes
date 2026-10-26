@@ -4,6 +4,8 @@ O Socket.IO transmite eventos públicos de lances. **O registro do lance continu
 
 ## Servidor e conexão
 
+O servidor também transmite `lot:closed` e `auction:closed`, produzidos pelo worker após o commit da liquidação. Não há encerramento ou liquidação solicitados por socket.
+
 Socket.IO 4 está ligado ao mesmo `http.Server` do Express, na porta configurada (padrão 3000). Não há segunda porta ou segundo servidor HTTP. O caminho do protocolo é `/socket.io`; conecte à origem do servidor, sem `/api`.
 
 O acompanhamento é público e não exige JWT. O servidor não lê tokens enviados pelo socket nem os repassa nos eventos. Use um cliente Socket.IO compatível com a versão 4; WebSocket puro não implementa o protocolo Socket.IO.
@@ -53,6 +55,38 @@ Outros códigos: `NOT_FOUND`, `SUBSCRIPTION_LIMIT`, `RATE_LIMITED`, `INTERNAL_ER
 - Mensagens de entrada limitadas a 1024 bytes pelo transporte.
 
 Sair de uma sala libera uma vaga. Os limites são por conexão; proteção global por IP/proxy não foi adicionada nesta etapa. Nomes de salas, propriedades extras, arrays, IDs malformados e payloads que tentem selecionar uma sala arbitrária são rejeitados.
+
+## Eventos de encerramento
+
+`lot:closed`, somente à sala `lot:{lotId}`:
+
+```json
+{
+  "lotId": "11111111-1111-4111-8111-111111111111",
+  "auctionId": "22222222-2222-4222-8222-222222222222",
+  "status": "SOLD",
+  "closedAt": "2026-10-26T16:22:00.000Z"
+}
+```
+
+Status também pode ser UNSOLD. Quando todos os lotes estiverem finalizados, `auction:closed` é enviado à união das salas dos lotes do leilão, uma vez por cliente:
+
+```json
+{
+  "auctionId": "22222222-2222-4222-8222-222222222222",
+  "status": "CLOSED",
+  "closedAt": "2026-10-26T16:22:00.000Z"
+}
+```
+
+```javascript
+socket.on("lot:closed", event => console.log("Resultado do lote", event));
+socket.on("auction:closed", event => console.log("Leilão encerrado", event));
+```
+
+Na transação que encerra o último lote, publica-se lot:closed antes de auction:closed. Nenhum payload inclui vencedor, nome, e-mail, saldo, reserva ou carteira. O cliente de terminal `npm.cmd run socket:client -- UUID_DO_LOTE` imprime ambos, além de bid:created e lot:extended.
+
+Os eventos são transitórios, não persistidos, sem replay ou garantia de entrega. Queda após commit pode perder notificações; falha de emissão não desfaz liquidação. O barramento atual é local ao processo: múltiplos workers preservam o dinheiro, mas múltiplas instâncias de API não compartilham notificações. Use REST para recuperar status/resultado/prazo do lote e status do leilão; comprovante e dados de carteira exigem JWT. Roteiro com dois clientes e Postman em [encerramento-liquidacao.md](encerramento-liquidacao.md).
 
 ## Evento do servidor: `bid:created`
 
@@ -191,6 +225,7 @@ Regressão completa com PostgreSQL real, sem modificar `.env`:
 
 ```powershell
 $env:SOCKET_DATABASE_TESTS = '1'
+$env:SETTLEMENT_DATABASE_TESTS = '1'
 $env:ANTI_SNIPING_DATABASE_TESTS = '1'
 $env:AUCTION_LIFECYCLE_DATABASE_TESTS = '1'
 $env:BID_DATABASE_TESTS = '1'
@@ -199,6 +234,7 @@ $env:LOT_DATABASE_TESTS = '1'
 $env:VEHICLE_DATABASE_TESTS = '1'
 try { npm.cmd run test:integration } finally {
   Remove-Item Env:SOCKET_DATABASE_TESTS
+  Remove-Item Env:SETTLEMENT_DATABASE_TESTS
   Remove-Item Env:ANTI_SNIPING_DATABASE_TESTS
   Remove-Item Env:AUCTION_LIFECYCLE_DATABASE_TESTS
   Remove-Item Env:BID_DATABASE_TESTS
@@ -210,4 +246,4 @@ try { npm.cmd run test:integration } finally {
 
 Os testes usam clientes Socket.IO reais, polling/WebSocket, HTTP REST e JWT reais. As integrações financeiras usam tabelas descartáveis com prefixo exclusivo e mantêm uma transação aberta antes do commit para verificar ausência de emissão antecipada. Também forçam rollback após as gravações e conferem ordem, idempotência e ausência de movimentos persistidos. A cadeia e os registros preexistentes não recebem eventos de teste.
 
-Resultado atualizado ap?s anti-sniping: **422 testes aprovados**, sendo 339 sem banco e 83 com PostgreSQL real; valida??o Prisma, typecheck e build aprovados. A compara??o final das contagens e resumos dos registros confirmou dados preexistentes intactos, sem tabelas descart?veis restantes.
+Resultado atualizado após encerramento e liquidação: **463 testes aprovados**, sendo 356 sem banco e 107 com PostgreSQL real; Prisma validate, typecheck e build aprovados. A comparação final das contagens e hashes dos registros confirmou dados preexistentes intactos. Os cenários novos incluem dois clientes recebendo o encerramento somente após commit, isolamento de salas, rollback e ausência de duplicação.

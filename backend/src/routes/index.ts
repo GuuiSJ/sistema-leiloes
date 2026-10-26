@@ -7,6 +7,7 @@ import lotRoutes from "../modules/lots/lot.routes";
 import walletRoutes from "../modules/wallet/wallet.routes";
 import bidRoutes from "../modules/bids/bid.routes";
 import auctionLifecycleRoutes from "../modules/auctions/auction-lifecycle.routes";
+import { createReceiptRouter } from "../modules/receipts/receipt.routes";
 
 const routes = Router();
 routes.use("/auth", authRoutes);
@@ -17,6 +18,7 @@ routes.use("/fipe", fipeRoutes);
 routes.use("/vehicles", vehicleRoutes);
 routes.use("/wallet", walletRoutes);
 routes.use("/lots/:lotId/bids", bidRoutes);
+routes.use("/lots/:lotId/receipt", createReceiptRouter());
 
 routes.get("/health", (_req, res) => {
   res.status(200).json({

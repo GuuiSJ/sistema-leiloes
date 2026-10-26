@@ -1,6 +1,6 @@
 # Anti-sniping por lote
 
-Um lance novo e válido nos últimos dois minutos garante prazo até dois minutos após sua aceitação. A mudança é persistida na mesma transação do lance e das reservas. Não há encerramento automático, liquidação ou alteração das regras de saldo.
+Um lance novo e válido nos últimos dois minutos garante prazo até dois minutos após sua aceitação. A mudança é persistida na mesma transação do lance e das reservas. O encerramento e a captura posteriores são realizados pelo [worker de encerramento](encerramento-liquidacao.md), respeitando o prazo individual.
 
 ## Persistência
 
@@ -51,7 +51,7 @@ As validações de valor, incremento, propriedade e saldo disponível são prese
 
 Falha de gravação ou commit reverte lance, reservas, movimentos, versão e prazo. Rejeição não libera o líder, não prorroga e não emite eventos. Replay idempotente retorna o lance original, mesmo após o prazo, sem recalcular prorrogação, atualizar a posição ou republicar eventos. Mesma chave com outro valor/lote continua retornando 409.
 
-As reservas não são liquidadas nem liberadas automaticamente no término. A auditoria SHA-256 de abertura não é reescrita; não foi inventada ação de prorrogação no enum de auditoria.
+O módulo de lances não liquida reservas: essa responsabilidade é do worker, após o prazo efetivo. A auditoria SHA-256 de abertura não é reescrita; não foi inventada ação de prorrogação no enum de auditoria.
 
 ## REST e Socket.IO
 
@@ -130,7 +130,7 @@ npm.cmd run socket:client -- UUID_DO_LOTE_1
 8. Repita chave/valor: 200, `replayed: true`, sem novo evento nem mudança de prazo.
 9. Depois do prazo-base, mas antes do prazo individual, ofereça `"110.00"` no lote 1 com chave `anti-sniping-002`: deve ser aceito e pode prorrogar novamente. Uma oferta no lote 2 sem prorrogação deve retornar 409.
 10. Confira carteira/histórico: total inalterado e aumento próprio reservando só a diferença. Valor abaixo do incremento, saldo insuficiente ou `endsAt` enviado no POST/PATCH de lote devem ser rejeitados sem mudar o prazo.
-11. Pare de enviar ofertas e espere o último prazo efetivo terminar. Novo lance retorna 409 mesmo com status OPEN. Não há encerramento/liquidação automática.
+11. Pare de enviar ofertas e espere o último prazo efetivo terminar. Novo lance retorna 409 mesmo antes de o worker atualizar o status. Na entrega de encerramento, o worker captura a reserva e finaliza o lote; consulte [encerramento-liquidacao.md](encerramento-liquidacao.md).
 
 No limite exato de dois minutos não há prorrogação real; essa fronteira é coberta por testes determinísticos. O roteiro manual busca uma mudança visível dentro da janela.
 
@@ -163,4 +163,4 @@ Os testes de fronteira controlam somente a resposta SQL do relógio, mantendo tr
 
 As novas integrações usam tabelas descartáveis de prefixo exclusivo reconstruídas a partir das migrações, incluindo a nova. Não modificam registros de uso nem a cadeia de auditoria existente.
 
-Resultado da entrega: **422 testes aprovados** (339 sem banco e 83 com PostgreSQL real), incluindo 22 novos cen?rios. Valida??o Prisma, typecheck e build aprovados. Migra??o aplicada e Prisma Client regenerado; contagens e resumos dos registros preexistentes permaneceram iguais, sem tabelas tempor?rias restantes.
+Resultado original da entrega de anti-sniping: **422 testes aprovados** (339 sem banco e 83 com PostgreSQL real), incluindo 22 novos cenários. Validação Prisma, typecheck e build aprovados. Migração aplicada e Prisma Client regenerado; registros preexistentes preservados. A regressão posterior de encerramento e liquidação está documentada em [encerramento-liquidacao.md](encerramento-liquidacao.md).

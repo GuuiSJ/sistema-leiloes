@@ -9,6 +9,7 @@ function publicLot(lot: LotRecord) {
     number: lot.number, startingPrice: lot.startingPrice.toFixed(2),
     minimumIncrement: lot.minimumIncrement.toFixed(2), status: lot.status,
     endsAt: effectiveLotEndsAt(lot, lot.auction),
+    result: lot.status === "SOLD" && lot.receipt ? { status: lot.status, winningBidId: lot.receipt.winningBidId, finalAmount: lot.receipt.finalAmount.toFixed(2) } : lot.status === "UNSOLD" ? { status: lot.status, winningBidId: null, finalAmount: null } : null,
     createdAt: lot.createdAt, updatedAt: lot.updatedAt, vehicle: publicVehicle(lot.vehicle),
   };
 }
