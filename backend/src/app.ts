@@ -5,10 +5,11 @@ import "./config/env";
 import routes from "./routes";
 import { errorHandler } from "./middlewares/error-handler";
 import { notFound } from "./middlewares/not-found";
+import { frontendOrigin } from "./config/http";
 
 const app = express();
 
-app.use(cors({ origin: process.env.FRONTEND_URL ?? "http://localhost:5173" }));
+app.use(cors({ origin: frontendOrigin() }));
 app.use(express.json());
 
 app.use("/api", routes);

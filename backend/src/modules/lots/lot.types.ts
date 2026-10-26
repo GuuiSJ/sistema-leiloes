@@ -1,10 +1,10 @@
-import type { Auction, Lot, Vehicle } from "../../generated/prisma/client";
+import type { Auction, AuctionReceipt, Lot, Vehicle } from "../../generated/prisma/client";
 
 export interface LotInput { vehicleId: string; number: number; startingPrice: string; minimumIncrement: string }
 // Increment is fixed after creation in this stage.
 export type LotPatch = Partial<Omit<LotInput, "minimumIncrement">>;
 export interface LotQuery { page: number; limit: number }
-export type LotRecord = Lot & { vehicle: Vehicle };
+export type LotRecord = Lot & { vehicle: Vehicle; auction: Pick<Auction, "endsAt">; receipt?: Pick<AuctionReceipt, "winningBidId" | "finalAmount"> | null };
 export type LotCommand =
   | { operation: "create"; auctionId: string; input: LotInput }
   | { operation: "update"; auctionId: string; lotId: string; input: LotPatch }

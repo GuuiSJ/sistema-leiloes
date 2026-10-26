@@ -1,9 +1,13 @@
 
 import "./config/env";
 import app from "./app";
-import type { Server } from "node:http";
+import { createServer, type Server } from "node:http";
+import type { Server as SocketServer } from "socket.io";
+import { attachBidSocket } from "./realtime/bid-socket";
 import { connectDatabase, disconnectDatabase } from "./lib/prisma";
 import { getAuthConfig } from "./config/auth";
+import { SettlementWorker } from "./workers/settlement-worker";
+import { createSettlementRepository } from "./modules/settlement/settlement.repository";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -12,6 +16,8 @@ if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
 }
 
 let server: Server | undefined;
+let realtime: SocketServer | undefined;
+let settlementWorker: SettlementWorker | undefined;
 let shuttingDown = false;
 let startupStage: "jwt" | "database" | "http" = "jwt";
 
@@ -20,17 +26,21 @@ async function shutdown(): Promise<void> {
   shuttingDown = true;
 
   try {
+    await settlementWorker?.stop();
     if (server?.listening) {
       const activeServer = server;
       const timeout = setTimeout(() => activeServer.closeAllConnections(), 10000);
       timeout.unref();
       try {
         await new Promise<void>((resolve, reject) => {
-          activeServer.close((error) => error ? reject(error) : resolve());
+          if (realtime) realtime.close((error?: Error) => error ? reject(error) : resolve());
+          else activeServer.close((error) => error ? reject(error) : resolve());
         });
       } finally {
         clearTimeout(timeout);
       }
+    } else if (realtime) {
+      await new Promise<void>(resolve => { void realtime!.close(() => resolve()); });
     }
   } finally {
     await disconnectDatabase();
@@ -57,11 +67,14 @@ async function start(): Promise<void> {
   }
 
   startupStage = "http";
+  server = createServer(app);
+  realtime = attachBidSocket(server);
   await new Promise<void>((resolve, reject) => {
-    server = app.listen(PORT, (error?: Error) => error ? reject(error) : resolve());
-    server.once("error", reject);
+    server!.listen(PORT, resolve);
+    server!.once("error", reject);
   });
   console.log(`Servidor rodando na porta ${PORT}`);
+  if (!shuttingDown) { settlementWorker = new SettlementWorker(createSettlementRepository()); settlementWorker.start(); }
 }
 
 void start().catch(async (error: unknown) => {

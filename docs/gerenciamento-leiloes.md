@@ -1,7 +1,7 @@
 # API de gerenciamento de leilões
 
-Implementação limitada ao modelo `Auction`, sem alterações de schema, migrações,
-dependências adicionais ou APIs de veículos, lotes, lances e carteiras.
+Gerenciamento do leilão e suas transições controladas, integrado aos lotes e aos
+lances existentes, sem alteração do schema Prisma ou criação de migrações.
 
 ## Endpoints
 
@@ -12,6 +12,8 @@ dependências adicionais ou APIs de veículos, lotes, lances e carteiras.
 | `GET /api/auctions/:id` | Público | HTTP 200 com `{ "auction": ... }`. |
 | `PATCH /api/auctions/:id` | `AUCTIONEER` responsável | HTTP 200 com o leilão atualizado, somente em `DRAFT` e antes do início. |
 | `PATCH /api/auctions/:id/cancel` | `AUCTIONEER` responsável | HTTP 200 com o leilão em `CANCELLED`, sem exclusão física. |
+| `PATCH /api/auctions/:id/schedule` | `AUCTIONEER` responsável | HTTP 200 com transição `DRAFT → SCHEDULED`, datas futuras e lotes válidos. |
+| `PATCH /api/auctions/:id/open` | `AUCTIONEER` responsável | HTTP 200 com transição `SCHEDULED → OPEN` e abertura atômica dos lotes elegíveis. |
 
 As respostas incluem somente `id`, `title`, `description`, `startsAt`, `endsAt`,
 `status`, `createdAt` e `updatedAt`. Não incluem `organizerId`, nome, e-mail,
@@ -150,7 +152,7 @@ tentativa de cancelamento retorna 409.
 
 ## Testes e decisões
 
-`npm test` executa as suítes de autenticação e leilões; `npm run typecheck`
+`npm test` executa as suítes sem dependência de PostgreSQL; `npm run typecheck`
 inclui os testes; `npm run build` compila o backend sem testes.
 
 Testes HTTP de leilões usam JWT e middlewares reais, com repositórios em memória e
@@ -163,3 +165,95 @@ consulta pública também para rascunhos/cancelados; bloqueio temporal mesmo em
 rascunho; limites de descrição/paginação; bloqueio conservador de qualquer histórico
 de reserva ou lance. Relaxar essas regras exigirá definição posterior dos fluxos
 financeiros, sem avanço automático nesta entrega.
+
+## Agendamento e abertura sob demanda
+
+A estratégia adotada é **abertura sob demanda pelo responsável autenticado**, usando o endpoint de abertura. Não há scheduler, mudança por consulta pública, abertura disparada por BIDDER ou SQL manual. Agendar não abre antecipadamente e não garante execução automática no horário: depois do início, o responsável chama o endpoint. O processo pode reiniciar sem perder o agendamento, pois o status está no banco. Se ninguém solicitar a abertura durante o período, o leilão permanece SCHEDULED e não aceita lances.
+
+### Agendar
+
+PATCH `{{baseUrl}}/api/auctions/{{auctionId}}/schedule`, com o token AUCTIONEER do organizador, sem corpo ou com `{}`:
+
+- Somente DRAFT pode passar a SCHEDULED.
+- O início deve ser estritamente futuro e o término posterior ao início, conforme relógio do PostgreSQL.
+- É necessário ao menos um lote não cancelado. Todos os não cancelados devem ser PENDING, com número positivo, preço inicial/incremento positivos, veículo do mesmo responsável, sem vencedor, lances, reservas ou recibos.
+- Lotes CANCELLED são preservados e ignorados; qualquer outro lote incompatível bloqueia a transição inteira com 409.
+- O endpoint não recebe nem altera datas. Ajuste-as pelo PATCH existente enquanto o leilão ainda estiver em DRAFT.
+- SCHEDULED já agendado retorna sucesso sem alterar datas, lotes ou auditoria (`unchanged: true`). OPEN/CLOSED/CANCELLED não podem ser agendados por esse endpoint.
+
+### Abrir
+
+PATCH `{{baseUrl}}/api/auctions/{{auctionId}}/open`, com o mesmo token, sem corpo ou com `{}`:
+
+- Somente SCHEDULED passa a OPEN; não existe atalho DRAFT → OPEN.
+- Exige `startsAt <= agora < endsAt`. O início é inclusivo; o término, exclusivo.
+- Revalida propriedade e condições dos lotes. Todos os PENDING elegíveis passam a OPEN na mesma transação que o leilão; as versões dos lotes são incrementadas.
+- Lotes CANCELLED continuam cancelados. Incompatibilidade em qualquer outro lote impede toda a abertura.
+- Reenvio para leilão já OPEN retorna `unchanged: true`, sem reabrir lotes, incrementar versões ou duplicar eventos. Esse reenvio não é uma nova abertura e não altera status mesmo após o término.
+- Leilões CLOSED/CANCELLED não são reabertos. Abertura antes do início ou no/após término retorna 409.
+
+As duas operações rejeitam campos extras, inclusive `status`, `organizerId`, `startsAt` e `force`; queries também são rejeitadas. JWT ausente/inválido retorna 401; BIDDER ou outro leiloeiro, 403; UUID inválido, 400; inexistente, 404; estado, horário, dados de lote ou cadeia incompatíveis, 409.
+
+Exemplo de resposta após abrir dois lotes:
+
+```json
+{
+  "auction": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "title": "Leilão de demonstração",
+    "description": null,
+    "startsAt": "2026-10-26T15:00:00.000Z",
+    "endsAt": "2026-10-26T16:00:00.000Z",
+    "status": "OPEN",
+    "createdAt": "2026-10-26T14:00:00.000Z",
+    "updatedAt": "2026-10-26T15:00:00.000Z"
+  },
+  "openedLots": 2,
+  "unchanged": false
+}
+```
+
+### Atomicidade, horário e auditoria
+
+As transições usam Serializable e bloqueiam veículos em ordem de UUID, leilão e lotes. Essa ordem é compatível com edição de veículos/lotes e com lances. As condições são relidas dentro da transação; mudanças concorrentes ou conflitos persistentes retornam 409, com até três tentativas para serialização/deadlock.
+
+A abertura adquire também o bloqueio global da auditoria. O relógio do banco é consultado novamente depois dessa espera: uma operação que começou antes do término não pode abrir depois dele. O epoch é convertido para `Date` para evitar a diferença de fuso observada na conversão de timestamps brutos do driver.
+
+O gravador mínimo da cadeia foi explicitamente autorizado nesta etapa. A abertura grava um AUCTION_OPENED e um LOT_OPENED por lote aberto, na **mesma transação** dos status. Erro em qualquer evento reverte leilão, lotes e todos os eventos desse lote de gravações. Não altera carteira, saldo, lance, reserva ou histórico financeiro.
+
+O formato versionado, a canonicalização, os campos públicos permitidos e os limites de proteção estão em [auditoria-abertura.md](auditoria-abertura.md). Cadeia existente inválida ou de formato não suportado bloqueia novas aberturas; não há reparo automático. Agendamento não grava evento de abertura.
+
+### Fluxo completo no Postman
+
+Neste documento `baseUrl` é a origem do servidor, por exemplo `http://localhost:3000`, sem `/api`.
+
+1. Com AUCTIONEER, crie um leilão com início alguns minutos no futuro e término posterior. Use ISO 8601 com segundos e fuso, ajustados ao momento do teste.
+2. Cadastre um veículo com o mesmo usuário e crie ao menos um lote nesse leilão, enquanto ele estiver DRAFT.
+3. PATCH `{{baseUrl}}/api/auctions/{{auctionId}}/schedule`, Bearer do organizador, sem corpo. Confira SCHEDULED.
+4. Antes do início, PATCH `.../open` retorna 409 e não abre lotes.
+5. Aguarde o início e envie PATCH `.../open` antes do término. Confira OPEN e `openedLots`.
+6. Consulte os lotes publicamente: os elegíveis estarão OPEN.
+7. Faça login com outro usuário BIDDER, consulte/credite sua própria carteira pelo fluxo de demonstração e envie POST `{{baseUrl}}/api/lots/{{lotId}}/bids`, header `Idempotency-Key: lance-001`, JSON `{"amount":"100.00"}`, ajustando ao preço inicial.
+
+Não é necessário alterar o banco manualmente. As restrições de crédito simulado permanecem vigentes. Não foram implementados encerramento ou liquidação: o módulo de lances recusa ofertas no/após término mesmo se o status continuar OPEN.
+
+### Testes das transições com PostgreSQL
+
+```powershell
+$env:AUCTION_LIFECYCLE_DATABASE_TESTS = '1'
+$env:BID_DATABASE_TESTS = '1'
+$env:WALLET_DATABASE_TESTS = '1'
+$env:LOT_DATABASE_TESTS = '1'
+$env:VEHICLE_DATABASE_TESTS = '1'
+try { npm.cmd run test:integration } finally {
+  Remove-Item Env:AUCTION_LIFECYCLE_DATABASE_TESTS
+  Remove-Item Env:BID_DATABASE_TESTS
+  Remove-Item Env:WALLET_DATABASE_TESTS
+  Remove-Item Env:LOT_DATABASE_TESTS
+  Remove-Item Env:VEHICLE_DATABASE_TESTS
+}
+```
+
+Na pasta `backend`, `npm.cmd test`, `npm.cmd run typecheck` e `npm.cmd run build` continuam disponíveis. Os testes novos de banco usam tabelas e enums descartáveis com prefixo aleatório `lc_<UUID>_`, reconstruídos a partir das migrações existentes. Um adaptador exclusivo dos testes direciona tanto as consultas Prisma quanto os bloqueios SQL a essas tabelas. Isso preserva as FKs reais e permite concorrência entre conexões sem inserir/remover eventos na cadeia de auditoria de uso. A conta de teste precisa poder criar tabelas/types no schema public; não precisa criar schemas ou ter credenciais administrativas. O `finally` remove apenas os objetos com o prefixo gerado pela própria execução. Não há alteração de `schema.prisma`, de migrações ou de permissões. Interrupção forçada pode deixar objetos de teste para inspeção manual.
+
+Resultado desta entrega: **379 testes aprovados**, sendo 313 sem banco e 66 com PostgreSQL real; typecheck e build aprovados. As transições e a auditoria acrescentaram 45 testes, incluindo 11 com banco. A comparação final confirmou os registros preexistentes intactos e nenhum objeto descartável restante.
