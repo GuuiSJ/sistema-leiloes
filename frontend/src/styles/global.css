@@ -43,6 +43,24 @@ button { cursor: pointer; }
 .skip-link { position: fixed; top: 1rem; left: 1rem; z-index: 50; transform: translateY(-200%); border-radius: 0.5rem; background: var(--app-surface); padding: 0.75rem 1rem; color: var(--app-ink); }
 .skip-link:focus { transform: translateY(0); }
 .intro-panel { animation: intro-appear 500ms ease-out both; }
+.hero-section { display: grid; isolation: isolate; }
+.hero-copy { position: relative; z-index: 2; padding: 3rem 1.5rem 2.5rem; }
+.hero-copy h1 { overflow-wrap: break-word; }
+.hero-button { display: inline-flex; min-height: 3.25rem; align-items: center; justify-content: center; gap: 0.65rem; border-radius: 0.625rem; padding: 0.875rem 1.25rem; font-size: 0.875rem; font-weight: 600; transition: background-color 180ms, border-color 180ms, transform 180ms; }
+.hero-button:hover { transform: translateY(-2px); }
+.hero-button:focus-visible { outline-color: #93c5fd; }
+.hero-visual { position: relative; min-width: 0; height: clamp(18rem, 66vw, 30rem); margin: 0; overflow: hidden; }
+.hero-image { height: 100%; width: 100%; object-fit: cover; object-position: 50% 68%; transition: transform 700ms ease; }
+.hero-visual:hover .hero-image { transform: scale(1.025); }
+.hero-image-shade { position: absolute; inset: 0; background: linear-gradient(to bottom, #0b1730, transparent 24%, transparent 72%, rgb(11 23 48 / 85%)); pointer-events: none; }
 @keyframes intro-appear { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (min-width: 640px) { .hero-copy { padding: 3.5rem 2.5rem; } }
+@media (min-width: 1024px) {
+  .hero-section { grid-template-columns: 54% 46%; min-height: 35rem; }
+  .hero-copy { align-self: center; padding: 4rem 1.25rem 4rem 3.5rem; }
+  .hero-visual { height: 100%; min-height: 35rem; }
+  .hero-image { position: absolute; inset: 0; object-position: 50% 65%; }
+  .hero-image-shade { background: linear-gradient(to right, #0b1730, rgb(11 23 48 / 12%) 35%, transparent 70%), linear-gradient(to top, rgb(11 23 48 / 90%), transparent 35%); }
+}
 @media (min-width: 640px) { .page-container { width: min(100% - 4rem, 1200px); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
