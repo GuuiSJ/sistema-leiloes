@@ -40,15 +40,17 @@ export function AuctioneerVehiclesPage() {
 }
 
 export function AuctioneerAuctionsPage({ selectLot = false }: { selectLot?: boolean }) {
+  const location = useLocation()
   const { query, setQuery, page, change } = useListQuery()
   const rawStatus = query.get('status') ?? ''
   const status = Object.hasOwn(auctionStatusLabels, rawStatus) ? rawStatus as AuctionStatus : undefined
   const resource = usePublicResource(`admin:auctions:${page}:${status ?? ''}`, signal => listAuctions(page, 10, signal, status))
   return <><AdminHeading title={selectLot ? 'Lotes por leilão' : 'Leilões'} description={selectLot ? 'Selecione um leilão para consultar seus lotes. A seleção inclui todas as páginas do catálogo.' : 'Consulte os leilões da plataforma por status. Datas apresentadas no horário de Brasília.'} retry={resource.retry} />
+    {!selectLot && <div className="mb-5 flex flex-wrap items-center justify-between gap-3">{typeof location.state?.auctionNotice === 'string' && <p role="status" className="text-sm">{location.state.auctionNotice}</p>}<Link to="/area-leiloeiro/leiloes/novo" className={`${adminButton} bg-accent text-white hover:bg-blue-700`}>Cadastrar leilão</Link></div>}
     <div className="mb-6 rounded-2xl border border-line bg-surface p-5"><label className="block max-w-sm space-y-2 text-xs font-medium text-muted">Status do leilão<select className={adminInput} value={status ?? ''} onChange={event => setQuery(event.target.value ? { status: event.target.value } : {})}><option value="">Todos os status</option>{Object.entries(auctionStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
     <AdminFeedback {...resource} empty={!resource.data?.data.length}>{resource.data && <>
       <AdminTable headers={['Leilão', 'Status', 'Início · Brasília', 'Prazo · Brasília', 'Consulta']}>
-        {resource.data.data.map(auction => <tr key={auction.id} className="hover:bg-accent/5"><td className="min-w-44 px-5 py-5 font-medium">{auction.title}</td><td className="px-5 py-5"><StatusBadge>{auctionStatusLabels[auction.status]}</StatusBadge></td><td className="whitespace-nowrap px-5 py-5"><time dateTime={auction.startsAt}>{formatDate(auction.startsAt)}</time></td><td className="whitespace-nowrap px-5 py-5"><time dateTime={auction.endsAt}>{formatDate(auction.endsAt)}</time></td><td className="px-5 py-5"><Link to={`/area-leiloeiro/lotes/${auction.id}`} className="inline-flex min-h-11 items-center whitespace-nowrap font-medium text-accent dark:text-blue-300">Consultar lotes →</Link></td></tr>)}
+        {resource.data.data.map(auction => <tr key={auction.id} className="hover:bg-accent/5"><td className="min-w-44 px-5 py-5 font-medium">{auction.title}</td><td className="px-5 py-5"><StatusBadge>{auctionStatusLabels[auction.status]}</StatusBadge></td><td className="whitespace-nowrap px-5 py-5"><time dateTime={auction.startsAt}>{formatDate(auction.startsAt)}</time></td><td className="whitespace-nowrap px-5 py-5"><time dateTime={auction.endsAt}>{formatDate(auction.endsAt)}</time></td><td className="px-5 py-5">{!selectLot && <Link to={`/area-leiloeiro/leiloes/${auction.id}/editar`} className="inline-flex min-h-11 items-center whitespace-nowrap font-medium text-accent dark:text-blue-300">Gerenciar leilão</Link>}<Link to={`/area-leiloeiro/lotes/${auction.id}`} className="inline-flex min-h-11 items-center whitespace-nowrap font-medium text-accent dark:text-blue-300">Consultar lotes →</Link></td></tr>)}
       </AdminTable><AdminPagination pagination={resource.data.pagination} change={change} />
     </>}</AdminFeedback>
   </>

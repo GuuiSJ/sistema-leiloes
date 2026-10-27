@@ -12,6 +12,7 @@ import { AdminLayout } from './components/auctioneer/AdminLayout'
 import { AuctioneerOverviewPage } from './pages/AuctioneerOverviewPage'
 import { AuctioneerAuctionsPage, AuctioneerLotsPage, AuctioneerVehiclesPage } from './pages/AuctioneerListsPage'
 import { AuctioneerVehiclePage } from './pages/AuctioneerVehiclePage'
+import { AuctioneerAuctionPage } from './pages/AuctioneerAuctionPage'
 
 export function App() {
   return (
@@ -33,6 +34,8 @@ export function App() {
             <Route path="veiculos/novo" element={<AuctioneerVehiclePage create />} />
             <Route path="veiculos/:vehicleId/editar" element={<AuctioneerVehiclePage />} />
             <Route path="leiloes" element={<AuctioneerAuctionsPage />} />
+            <Route path="leiloes/novo" element={<AuctioneerAuctionPage create />} />
+            <Route path="leiloes/:auctionId/editar" element={<AuctioneerAuctionPage />} />
             <Route path="lotes" element={<AuctioneerAuctionsPage selectLot />} />
             <Route path="lotes/:auctionId" element={<AuctioneerLotsPage />} />
           </Route>

@@ -28,7 +28,7 @@ const text = (value: unknown): value is string => typeof value === 'string'
 const date = (value: unknown): value is string => text(value) && Number.isFinite(Date.parse(value))
 const money = (value: unknown): value is string => text(value) && /^\d+\.\d{2}$/.test(value)
 const integer = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
-const isAuction = (v: unknown): v is Auction => record(v) && text(v.id) && text(v.title) &&
+export const isAuction = (v: unknown): v is Auction => record(v) && text(v.id) && text(v.title) &&
   (v.description === undefined || v.description === null || text(v.description)) &&
   ['DRAFT', 'SCHEDULED', 'OPEN', 'CLOSED', 'CANCELLED'].includes(String(v.status)) && date(v.startsAt) && date(v.endsAt)
 export const isVehicle = (v: unknown): v is Vehicle => record(v) && text(v.id) && text(v.brand) && text(v.model) && integer(v.year) &&
