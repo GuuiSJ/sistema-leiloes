@@ -1,6 +1,8 @@
 export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  constructor(message: string, readonly status?: number) { super(message) }
+}
 
 export async function getJson(path: string, signal: AbortSignal): Promise<unknown> {
   const controller = new AbortController()
@@ -12,7 +14,7 @@ export async function getJson(path: string, signal: AbortSignal): Promise<unknow
     const response = await fetch(`${API_BASE_URL}${path}`, {
       method: 'GET', signal: controller.signal, credentials: 'omit', headers: { Accept: 'application/json' },
     })
-    if (!response.ok) throw new ApiError('Não foi possível carregar os dados dos leilões. Tente novamente.')
+    if (!response.ok) throw new ApiError('Não foi possível carregar os dados dos leilões. Tente novamente.', response.status)
     return await response.json()
   } catch (error) {
     if (signal.aborted) throw error

@@ -14,7 +14,7 @@ const response = (body, status = 200) => new Response(JSON.stringify(body), { st
 
 before(async () => {
   // Vite loads TypeScript/import.meta.env; all HTTP requests are replaced below.
-  server = await createServer({ server: { middlewareMode: true }, appType: 'custom' })
+  server = await createServer({ server: { middlewareMode: true, ws: false }, appType: 'custom' })
   service = await server.ssrLoadModule('/src/services/auctions.ts')
   format = await server.ssrLoadModule('/src/services/formatters.ts')
   api = await server.ssrLoadModule('/src/services/api.ts')

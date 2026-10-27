@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { CalendarDays, CarFront, Layers3 } from 'lucide-react'
 import type { AuctionPreview, AuctionStatus, LotStatus, Vehicle } from '../../services/auctions'
 import { formatDate, formatMoney, validPhotoUrl } from '../../services/formatters'
@@ -74,6 +75,7 @@ export function AuctionCard({ item }: { item: AuctionPreview }) {
           {totalLots !== null && totalLots > 1 && <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-muted">
             <Layers3 size={15} className="mt-0.5 shrink-0" aria-hidden="true" />Prévia de 1 dos {totalLots} lotes deste leilão.
           </p>}
+          <Link to={`/leiloes/${encodeURIComponent(auction.id)}`} aria-label={`Ver detalhes de ${auction.title}`} className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-line text-sm font-medium text-accent transition-colors hover:bg-accent/10 dark:text-blue-300">Ver leilão e veículos</Link>
         </div>
       </div>
     </article>

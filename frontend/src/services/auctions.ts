@@ -3,10 +3,12 @@ import { ApiError, getJson } from './api'
 export type AuctionStatus = 'DRAFT' | 'SCHEDULED' | 'OPEN' | 'CLOSED' | 'CANCELLED'
 export type LotStatus = 'PENDING' | 'OPEN' | 'SOLD' | 'UNSOLD' | 'CANCELLED'
 export interface Auction {
-  id: string; title: string; status: AuctionStatus; startsAt: string; endsAt: string
+  id: string; title: string; status: AuctionStatus; startsAt: string; endsAt: string; description?: string | null
 }
 export interface Vehicle {
   id: string; brand: string; model: string; year: number; version: string | null; imageUrls: string[]
+  description?: string | null; fipeCode?: string | null; fipeReferenceMonth?: string | null
+  fipeReferencePrice?: string | null; fipeReferencePriceVerified?: boolean
 }
 export interface Lot {
   id: string; auctionId: string; number: number; startingPrice: string; minimumIncrement: string
@@ -26,8 +28,12 @@ const date = (value: unknown): value is string => text(value) && Number.isFinite
 const money = (value: unknown): value is string => text(value) && /^\d+\.\d{2}$/.test(value)
 const integer = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 const isAuction = (v: unknown): v is Auction => record(v) && text(v.id) && text(v.title) &&
+  (v.description === undefined || v.description === null || text(v.description)) &&
   ['DRAFT', 'SCHEDULED', 'OPEN', 'CLOSED', 'CANCELLED'].includes(String(v.status)) && date(v.startsAt) && date(v.endsAt)
 const isVehicle = (v: unknown): v is Vehicle => record(v) && text(v.id) && text(v.brand) && text(v.model) && integer(v.year) &&
+  [v.description, v.fipeCode, v.fipeReferenceMonth].every(value => value === undefined || value === null || text(value)) &&
+  (v.fipeReferencePrice === undefined || v.fipeReferencePrice === null || money(v.fipeReferencePrice)) &&
+  (v.fipeReferencePriceVerified === undefined || typeof v.fipeReferencePriceVerified === 'boolean') &&
   (v.version === null || text(v.version)) && Array.isArray(v.imageUrls) && v.imageUrls.every(text)
 const isLot = (v: unknown): v is Lot => record(v) && text(v.id) && text(v.auctionId) && integer(v.number) &&
   money(v.startingPrice) && money(v.minimumIncrement) && ['PENDING', 'OPEN', 'SOLD', 'UNSOLD', 'CANCELLED'].includes(String(v.status)) && date(v.endsAt) && isVehicle(v.vehicle)
@@ -53,6 +59,23 @@ export function listAuctionLots(auctionId: string, signal: AbortSignal) {
 }
 export function latestLotBid(lotId: string, signal: AbortSignal) {
   return getPage(`/api/lots/${encodeURIComponent(lotId)}/bids?page=1&limit=1`, isBid, signal)
+}
+
+export async function getAuction(id: string, signal: AbortSignal): Promise<Auction> {
+  const body = await getJson(`/api/auctions/${encodeURIComponent(id)}`, signal)
+  if (!record(body) || !isAuction(body.auction) || body.auction.id !== id) throw new ApiError('Dados do leilão em formato inesperado.')
+  return body.auction
+}
+export function getLotsPage(auctionId: string, page: number, signal: AbortSignal) {
+  return getPage(`/api/auctions/${encodeURIComponent(auctionId)}/lots?page=${page}&limit=10`, isLot, signal)
+}
+export async function getLot(auctionId: string, lotId: string, signal: AbortSignal): Promise<Lot> {
+  const body = await getJson(`/api/auctions/${encodeURIComponent(auctionId)}/lots/${encodeURIComponent(lotId)}`, signal)
+  if (!record(body) || !isLot(body.lot) || body.lot.id !== lotId || body.lot.auctionId !== auctionId) throw new ApiError('Dados do lote em formato inesperado.')
+  return body.lot
+}
+export function getBidHistory(lotId: string, page: number, signal: AbortSignal) {
+  return getPage(`/api/lots/${encodeURIComponent(lotId)}/bids?page=${page}&limit=10`, isBid, signal)
 }
 
 export async function previewAuction(auction: Auction, signal: AbortSignal): Promise<AuctionPreview> {
