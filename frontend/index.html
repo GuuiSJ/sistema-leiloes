@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Leilões de automóveis. Grandes carros, novas oportunidades." />
+    <meta name="theme-color" content="#0B1730" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Leilões | Grandes carros. Novas oportunidades.</title>
+    <script>
+      // Resolve the initial theme before rendering, even when storage is unavailable.
+      try {
+        const saved = localStorage.getItem('leiloes-theme');
+        const dark = saved === 'dark' || (saved !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', dark);
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch {
+        const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.classList.toggle('dark', dark);
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
