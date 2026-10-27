@@ -8,6 +8,7 @@ import { connectDatabase, disconnectDatabase } from "./lib/prisma";
 import { getAuthConfig } from "./config/auth";
 import { SettlementWorker } from "./workers/settlement-worker";
 import { createSettlementRepository } from "./modules/settlement/settlement.repository";
+import { TemporalStartupError } from "./modules/temporal/temporal-runtime";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -74,12 +75,15 @@ async function start(): Promise<void> {
     server!.once("error", reject);
   });
   console.log(`Servidor rodando na porta ${PORT}`);
+  // connectDatabase verifies temporal compatibility before HTTP listens or the worker starts.
   if (!shuttingDown) { settlementWorker = new SettlementWorker(createSettlementRepository()); settlementWorker.start(); }
 }
 
 void start().catch(async (error: unknown) => {
   if (startupStage === "jwt") {
     console.error("Configuração JWT inválida. Verifique JWT_SECRET (mínimo de 32 bytes) e JWT_EXPIRES_IN (inteiro positivo em segundos).");
+  } else if (error instanceof TemporalStartupError) {
+    console.error("Inicialização temporal bloqueada. Verifique os pré-requisitos da ativação.", { code: error.code });
   } else if (startupStage === "database") {
     console.error(process.env.DATABASE_URL
       ? "Falha ao conectar ao PostgreSQL. Verifique o serviço e DATABASE_URL."

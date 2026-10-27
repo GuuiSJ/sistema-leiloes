@@ -9,7 +9,7 @@ import { PrismaClient } from "../../src/generated/prisma/client";
 // Definitive audit events must never be inserted/deleted in the user's public chain by tests.
 // Each scenario gets private prefixed tables reconstructed from existing migrations.
 // The application role can CREATE tables in public but cannot CREATE database schemas.
-export async function withLifecycleDatabase(check: (client: PrismaClient) => Promise<void>): Promise<void> {
+export async function withLifecycleDatabase(check: (client: PrismaClient) => Promise<void>, options: { timezone?: "UTC" | "America/Sao_Paulo" } = {}): Promise<void> {
   const prefix = `lc_${randomUUID().replaceAll("-", "")}_`;
   if (!/^lc_[0-9a-f]{32}_$/.test(prefix)) throw new Error("Prefixo de teste inválido.");
   const tables = ["User", "Auction", "Vehicle", "Lot", "Bid", "Wallet", "WalletTransaction", "BidReservation", "AuctionReceipt", "AuditEvent"];
@@ -30,7 +30,7 @@ export async function withLifecycleDatabase(check: (client: PrismaClient) => Pro
       return typeof value === "function" ? value.bind(object) : value;
     } });
   }
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 8, connectionTimeoutMillis: 5000 });
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 8, connectionTimeoutMillis: 5000, ...(options.timezone ? { options: `-c timezone=${options.timezone}` } : {}) });
   let client: PrismaClient | undefined;
   try {
     for (const migration of ["20261024111646_init_modelagem", "20261026120000_vehicle_owner", "20261027000000_lot_ends_at"]) {

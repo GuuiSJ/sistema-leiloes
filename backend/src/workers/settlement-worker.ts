@@ -1,21 +1,22 @@
 import type { SettlementRepository } from "../modules/settlement/settlement.repository";
 import { SettlementService } from "../modules/settlement/settlement.service";
 import { HttpError } from "../errors/http-error";
+import { temporalRuntime } from "../modules/temporal/temporal-runtime";
 
 export class SettlementWorker {
   private timer?: ReturnType<typeof setInterval>;
   private running?: Promise<void>;
   private stopped = true;
   private cursor = "";
-  constructor(private readonly repository: SettlementRepository, private readonly service = new SettlementService(repository), private readonly intervalMs = 1000, private readonly batchSize = 25) {}
+  constructor(private readonly repository: SettlementRepository, private readonly service = new SettlementService(repository), private readonly intervalMs = 1000, private readonly batchSize = 25, private readonly ready: () => boolean = () => temporalRuntime.workerReady) {}
   start(): void {
-    if (!this.stopped) return;
+    if (!this.stopped || !this.ready()) return;
     this.stopped = false;
     this.timer = setInterval(() => { void this.tick(); }, this.intervalMs);
     void this.tick();
   }
   async tick(): Promise<void> {
-    if (this.running || this.stopped) return;
+    if (this.running || this.stopped || !this.ready()) return;
     this.running = this.cycle();
     try { await this.running; } finally { this.running = undefined; }
   }
@@ -25,7 +26,7 @@ export class SettlementWorker {
       if (!candidates.length && this.cursor) { this.cursor = ""; candidates = await this.repository.candidates(this.batchSize, this.cursor); }
       // Advance even on failures, so inconsistent entries cannot starve later batches.
       for (const candidate of candidates) {
-        if (this.stopped) break;
+        if (this.stopped || !this.ready()) break;
         try { await this.service.process(candidate.auctionId, candidate.lotId); }
         catch (error) { console.error("Encerramento não aplicado; verificar consistência e disponibilidade.", { code: error instanceof HttpError && error.status === 409 ? "SETTLEMENT_INCONSISTENT" : "SETTLEMENT_FAILED", auctionId: candidate.auctionId, lotId: candidate.lotId }); }
         this.cursor = `${candidate.auctionId}:${candidate.lotId ?? ""}`;

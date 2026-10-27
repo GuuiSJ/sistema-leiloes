@@ -5,6 +5,7 @@ node_modules/
 dist/
 build/
 coverage/
+/backups/
 backend/src/generated/prisma/
 
 # Variáveis de ambiente

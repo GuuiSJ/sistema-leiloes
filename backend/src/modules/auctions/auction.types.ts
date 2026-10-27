@@ -1,6 +1,6 @@
 import type { Auction, AuctionStatus } from "../../generated/prisma/client";
 
-export type AuctionView = Omit<Auction, "organizerId">;
+export type AuctionView = Pick<Auction, "id" | "title" | "description" | "startsAt" | "endsAt" | "status" | "createdAt" | "updatedAt">;
 export type AuctionInput = Pick<Auction, "title" | "description" | "startsAt" | "endsAt">;
 export type AuctionPatch = Partial<AuctionInput>;
 export interface AuctionQuery {

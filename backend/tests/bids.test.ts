@@ -49,7 +49,7 @@ describe("Lances HTTP (JWT real, repositório em memória)", () => {
   beforeEach(() => {
     users.clear(); rows.length = 0; keys.clear(); fail = false;
     for (const id of [userId, otherId, ownerId]) users.set(id, { id, name: "Privado", email: "private@example.com", role: id === ownerId ? "AUCTIONEER" : "BIDDER", createdAt: new Date() });
-    const auction: Auction = { id: randomUUID(), organizerId: ownerId, title: "Fixture", description: null, startsAt: new Date(Date.now() - 86400000), endsAt: new Date(Date.now() + 86400000), status: "OPEN", createdAt: new Date(), updatedAt: new Date() };
+    const auction: Auction = { id: randomUUID(), organizerId: ownerId, ...{ temporalGeneration: "UTC_V2" }, title: "Fixture", description: null, startsAt: new Date(Date.now() - 86400000), endsAt: new Date(Date.now() + 86400000), status: "OPEN", createdAt: new Date(), updatedAt: new Date() };
     const lot: Lot = { id: lotId, auctionId: auction.id, vehicleId: randomUUID(), number: 1, startingPrice: new Prisma.Decimal(100), minimumIncrement: new Prisma.Decimal(10), status: "OPEN", winnerId: null, endsAt: null, version: 0, createdAt: new Date(), updatedAt: new Date() };
     state = { auction, lot, latest: null, vehicleOwnerId: ownerId, hasReceipt: false, now: new Date() };
   });

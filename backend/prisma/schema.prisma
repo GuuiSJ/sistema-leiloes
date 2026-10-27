@@ -21,6 +21,13 @@ enum AuctionStatus {
   CANCELLED
 }
 
+// LEGACY remains the database default. UTC_V2 requires an explicit backend write
+// after the controlled UTC activation, never a timestamp-based inference.
+enum AuctionTemporalGeneration {
+  LEGACY
+  UTC_V2
+}
+
 enum LotStatus {
   PENDING
   OPEN
@@ -115,6 +122,7 @@ model Auction {
   startsAt    DateTime      @db.Timestamptz(3)
   endsAt      DateTime      @db.Timestamptz(3)
   status      AuctionStatus @default(DRAFT)
+  temporalGeneration AuctionTemporalGeneration @default(LEGACY)
   createdAt   DateTime      @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime      @updatedAt @db.Timestamptz(3)
 
@@ -124,6 +132,7 @@ model Auction {
   @@index([organizerId, createdAt])
   @@index([status, startsAt])
   @@index([status, endsAt])
+  @@index([temporalGeneration, status])
 }
 
 model Lot {

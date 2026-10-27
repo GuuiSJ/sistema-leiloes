@@ -1,3 +1,4 @@
+import { requireOperationalAuction, rejectClientGeneration } from "../temporal/auction-generation";
 import { HttpError } from "../../errors/http-error";
 import type { Auction } from "../../generated/prisma/client";
 import type { AuctionInput, AuctionPage, AuctionPatch, AuctionQuery, AuctionRepository, AuctionView } from "./auction.types";
@@ -30,6 +31,7 @@ export class AuctionService {
   constructor(private readonly repository: AuctionRepository, private readonly now: () => Date = () => new Date()) {}
 
   async create(input: AuctionInput, userId: string): Promise<AuctionView> {
+    rejectClientGeneration(input);
     validPeriod(input.startsAt, input.endsAt);
     return publicAuction(await this.repository.create(input, userId));
   }
@@ -49,8 +51,10 @@ export class AuctionService {
   }
 
   async update(id: string, patch: AuctionPatch, userId: string): Promise<AuctionView> {
+    rejectClientGeneration(patch);
     return publicAuction(await this.repository.mutate(id, ({ auction }) => {
       requireOwner(auction, userId);
+      requireOperationalAuction(auction);
       if (auction.status !== "DRAFT" || auction.startsAt <= this.now()) {
         throw new HttpError(409, "Somente leilões em DRAFT e ainda não iniciados podem ser editados.");
       }
@@ -65,6 +69,7 @@ export class AuctionService {
   async cancel(id: string, userId: string): Promise<AuctionView> {
     return publicAuction(await this.repository.mutate(id, ({ auction, hasIncompatibleOperations }) => {
       requireOwner(auction, userId);
+      requireOperationalAuction(auction);
       if (!["DRAFT", "SCHEDULED"].includes(auction.status) || auction.startsAt <= this.now()) {
         throw new HttpError(409, "Somente leilões DRAFT ou SCHEDULED ainda não iniciados podem ser cancelados.");
       }

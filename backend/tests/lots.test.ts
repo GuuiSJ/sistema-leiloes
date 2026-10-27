@@ -70,7 +70,7 @@ describe("Lotes HTTP (JWT real, repositório em memória)", () => {
   beforeEach(() => {
     rows.clear(); auctions.clear(); vehicles.clear(); users.clear(); history.clear(); beforeWrite = undefined; fail = false;
     for (const id of [ownerId, otherId, bidderId]) users.set(id, { id, name: "Privado", email: "private@example.com", role: id === bidderId ? "BIDDER" : "AUCTIONEER", createdAt: new Date() });
-    const auction: Auction = { id: auctionId, organizerId: ownerId, title: "Leilão", description: null, status: "DRAFT", startsAt: new Date(Date.now() + 86400000), endsAt: new Date(Date.now() + 172800000), createdAt: new Date(), updatedAt: new Date() };
+    const auction: Auction = { id: auctionId, organizerId: ownerId, temporalGeneration: "UTC_V2", title: "Leilão", description: null, status: "DRAFT", startsAt: new Date(Date.now() + 86400000), endsAt: new Date(Date.now() + 172800000), createdAt: new Date(), updatedAt: new Date() };
     auctions.set(auctionId, auction); auctions.set(otherAuctionId, { ...auction, id: otherAuctionId, organizerId: otherId });
     const vehicle: Vehicle = { id: vehicleId, ownerId, brand: "Fiat", model: "Uno", year: 2020, version: null, description: null, imageUrls: [], fipeCode: null, fipeBrandCode: null, fipeModelCode: null, fipeYearCode: null, fipeReferenceMonth: null, fipeReferencePrice: null, fipeConsultedAt: null, createdAt: new Date(), updatedAt: new Date() };
     vehicles.set(vehicleId, vehicle); vehicles.set(secondVehicleId, { ...vehicle, id: secondVehicleId }); vehicles.set(foreignVehicleId, { ...vehicle, id: foreignVehicleId, ownerId: otherId });

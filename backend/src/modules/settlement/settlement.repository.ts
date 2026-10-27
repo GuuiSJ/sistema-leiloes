@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "../../generated/prisma/client";
+import { readAuctionGeneration, isOperationalAuction } from "../temporal/auction-generation";
 import { getPrisma } from "../../lib/prisma";
 import { HttpError } from "../../errors/http-error";
 import { effectiveLotEndsAt } from "../lots/lot-deadline";
@@ -25,10 +26,10 @@ export function createSettlementRepository(client: () => PrismaClient = getPrism
       return client().$queryRaw<{ auctionId: string; lotId: string | null }[]>`
         SELECT * FROM (SELECT a."id" AS "auctionId", l."id" AS "lotId"
         FROM "Auction" a JOIN "Lot" l ON l."auctionId" = a."id"
-        WHERE a."status" = 'OPEN' AND l."status" = 'OPEN'
+        WHERE a."temporalGeneration" = 'UTC_V2' AND a."status" = 'OPEN' AND l."status" = 'OPEN'
         UNION ALL
         SELECT a."id" AS "auctionId", NULL::uuid AS "lotId" FROM "Auction" a
-        WHERE a."status" = 'OPEN'
+        WHERE a."temporalGeneration" = 'UTC_V2' AND a."status" = 'OPEN'
           AND EXISTS (SELECT 1 FROM "Lot" l WHERE l."auctionId" = a."id")
           AND NOT EXISTS (SELECT 1 FROM "Lot" l WHERE l."auctionId" = a."id" AND l."status" NOT IN ('SOLD','UNSOLD','CANCELLED'))
         ) candidates WHERE ("auctionId"::text || ':' || COALESCE("lotId"::text, '')) > ${after}
@@ -41,6 +42,8 @@ export function createSettlementRepository(client: () => PrismaClient = getPrism
             const locked = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Auction" WHERE "id" = ${auctionId}::uuid FOR UPDATE SKIP LOCKED`;
             if (!locked.length) return {};
             const auction = await tx.auction.findUniqueOrThrow({ where: { id: auctionId } });
+            Object.assign(auction, await readAuctionGeneration(tx, auction.id));
+            if (!isOperationalAuction(auction)) return {};
             if (auction.status !== "OPEN") return {};
             let result: SettlementResult = {};
             let append: Awaited<ReturnType<typeof prepareAuditWriter>> | undefined;
@@ -89,7 +92,7 @@ export function createSettlementRepository(client: () => PrismaClient = getPrism
                   append = await prepareAuditWriter(tx); now = await clock();
                 }
                 await tx.lot.update({ where: { id: lotId }, data: { status, winnerId: latest?.userId ?? null, version: { increment: 1 } } });
-                const data = { formatVersion: 1, auctionId, status };
+                const data = { formatVersion: 2, auctionId, status };
                 await append("LOT_CLOSED", "Lot", lotId, data, null, now);
                 if (latest) {
                   await append("FUNDS_DEBITED", "Lot", lotId, data, null, now);
@@ -115,7 +118,7 @@ export function createSettlementRepository(client: () => PrismaClient = getPrism
             if (lots.length && lots.every(l => terminal.includes(l.status as typeof terminal[number]))) {
               append ??= await prepareAuditWriter(tx); now = await clock();
               await tx.auction.update({ where: { id: auctionId }, data: { status: "CLOSED" } });
-              await append("AUCTION_CLOSED", "Auction", auctionId, { formatVersion: 1, status: "CLOSED" }, null, now);
+              await append("AUCTION_CLOSED", "Auction", auctionId, { formatVersion: 2, status: "CLOSED" }, null, now);
               result.auction = { auctionId, lotIds: lots.map(l => l.id), status: "CLOSED", closedAt: now.toISOString() };
             }
             return result;

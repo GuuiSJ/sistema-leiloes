@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "../../generated/prisma/client";
 import { HttpError } from "../../errors/http-error";
+import { readAuctionGeneration, requireOperationalAuction } from "../temporal/auction-generation";
 import { getPrisma } from "../../lib/prisma";
 import type { BidRepository } from "./bid.types";
 import { effectiveLotEndsAt, extendedDeadline } from "../lots/lot-deadline";
@@ -32,6 +33,8 @@ export function createBidRepository(client: () => PrismaClient = getPrisma): Bid
             if (!lot) throw new HttpError(404, "Lote não encontrado.");
             if (lot.auctionId !== initial.auctionId) throw new HttpError(409, "Lote alterado simultaneamente. Reenvie a requisição.");
             const auction = await tx.auction.findUnique({ where: { id: lot.auctionId } });
+            if (!auction) inconsistent();
+            Object.assign(auction, await readAuctionGeneration(tx, auction.id));
             const vehicle = await tx.vehicle.findUnique({ where: { id: lot.vehicleId }, select: { ownerId: true } });
             const receipt = await tx.auctionReceipt.findUnique({ where: { lotId }, select: { id: true } });
             if (!auction || !vehicle) inconsistent();
@@ -61,6 +64,9 @@ export function createBidRepository(client: () => PrismaClient = getPrisma): Bid
               }
               return { bid, replayed: true };
             }
+            // Historical replay above is read-only; all new writes require UTC_V2.
+            if (auction.organizerId === userId || vehicle.ownerId === userId) throw new HttpError(403, "Não é permitido dar lance no próprio leilão ou veículo.");
+            requireOperationalAuction(auction);
             // Use the actual database clock after all blocking locks, rather than transaction start.
             // Epoch avoids driver-specific timezone conversion of raw timestamptz values.
             // Number is used only for Date milliseconds, never for financial values.
