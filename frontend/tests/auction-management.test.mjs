@@ -135,9 +135,9 @@ it('401 clears the existing session and 403 preserves the authenticated profile'
 it('form exposes the real fields, inline errors and Brasília preview without dispatching', () => {
   globalThis.fetch = () => { throw Error('Render must not send requests') }
   const html = render(h(Form, { draft: draft(), errors: { title: 'Informe o título.' }, busy: false, blocked: false, editing: false, change() {}, submit() {} }))
-  for (const name of ['title', 'description', 'startsAt', 'endsAt']) assert(html.includes(`name="${name}"`))
+  for (const name of ['title', 'description', 'startsAt', 'endsAt']) assert(html.includes(`name="${name === "startsAt" || name === "endsAt" ? `${name}-date` : name}"`))
   assert.match(html, /Informe o título/); assert.match(html, /aria-invalid="true"/)
-  assert.match(html, /Horário de Brasília/); assert.match(html, /01\/12\/2030, 14:00/)
+  assert.match(html, /horário de Brasília/); assert.match(html, /01\/12\/2030 às 14:00/)
   assert.match(html, /cadastrado como rascunho/); assert.doesNotMatch(html, /name="status"|name="temporalGeneration"/)
 })
 it('busy and blocked forms disable their inputs', () => {

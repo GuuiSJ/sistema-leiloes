@@ -24,7 +24,7 @@ export function validateAuction(draft: AuctionDraft): AuctionFields {
   const errors: AuctionFields = {}
   if (!draft.title.trim() || draft.title.trim().length > 150 || draft.title.includes('\0')) errors.title = 'Informe um título entre 1 e 150 caracteres.'
   if (draft.description.length > 10000 || draft.description.includes('\0')) errors.description = 'Use até 10.000 caracteres, sem caracteres nulos.'
-  for (const field of ['startsAt', 'endsAt'] as const) if (!validAuctionDate(draft[field])) errors[field] = 'Informe uma data válida com segundos e fuso: AAAA-MM-DDTHH:mm:ss-03:00 ou Z.'
+  for (const field of ['startsAt', 'endsAt'] as const) if (!validAuctionDate(draft[field])) errors[field] = 'Selecione uma data e um horário válidos no horário de Brasília.'
   if (!errors.startsAt && !errors.endsAt && Date.parse(draft.endsAt) <= Date.parse(draft.startsAt)) errors.endsAt = 'O término deve ser posterior ao início.'
   return errors
 }
