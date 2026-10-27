@@ -9,18 +9,35 @@ import { effectiveLotEndsAt } from "../lots/lot-deadline";
 function publicBid(bid: BidRecord) {
   return { id: bid.id, lotId: bid.lotId, amount: bid.amount.toFixed(2), sequence: bid.sequence, createdAt: bid.createdAt };
 }
-function validateState(state: BidState, amount: Prisma.Decimal, userId: string): void {
+function minimumBid(state: BidState): Prisma.Decimal {
+  return state.latest ? state.latest.amount.plus(state.lot.minimumIncrement) : state.lot.startingPrice;
+}
+export function validateState(state: BidState, amount: Prisma.Decimal, userId: string): void {
   if (state.auction.organizerId === userId || state.vehicleOwnerId === userId) throw new HttpError(403, "Não é permitido dar lance no próprio leilão ou veículo.");
   requireOperationalAuction(state.auction);
   if (state.auction.status !== "OPEN" || state.lot.status !== "OPEN" || state.auction.startsAt > state.now || effectiveLotEndsAt(state.lot, state.auction) <= state.now || state.lot.winnerId !== null || state.hasReceipt) {
     throw new HttpError(409, "Leilão e lote devem estar abertos e dentro do período de lances.");
   }
   if (!state.lot.startingPrice.greaterThan(0) || !state.lot.minimumIncrement.greaterThan(0)) throw new HttpError(409, "Lote com configuração financeira inconsistente.");
-  const minimum = state.latest ? state.latest.amount.plus(state.lot.minimumIncrement) : state.lot.startingPrice;
+  const minimum = minimumBid(state);
   if (amount.lessThan(minimum)) throw new HttpError(409, "Lance abaixo do valor inicial ou do incremento mínimo.");
 }
 export class BidService {
   constructor(private readonly repository: BidRepository, private readonly events: Pick<BidEventBus, "publish" | "publishExtended"> = bidEvents, private readonly queue: BidExecutionQueue = bidExecutionQueue) {}
+  async eligibility(lotId: string, userId: string) {
+    if (!this.repository.eligibility) throw new HttpError(503, "Consulta indisponível.");
+    const { state, available, held, walletExists } = await this.repository.eligibility(lotId, userId);
+    const minimum = minimumBid(state);
+    try {
+      validateState(state, minimum, userId);
+      if (minimum.greaterThan("9999999999999999.99")) throw new HttpError(409, "Limite monetário atingido.");
+      if (!walletExists || available.lessThan(minimum.minus(held))) throw new HttpError(409, "Saldo disponível insuficiente para o próximo lance.");
+      return { eligible: true, minimumAmount: minimum.toFixed(2), currentAmount: state.latest?.amount.toFixed(2) ?? null, endsAt: effectiveLotEndsAt(state.lot, state.auction), checkedAt: state.now };
+    } catch (error) {
+      if (error instanceof HttpError) return { eligible: false, reason: error.message };
+      throw error;
+    }
+  }
   async place(lotId: string, userId: string, rawAmount: string, key: string) {
     const amount = new Prisma.Decimal(validateCreate({ amount: rawAmount }));
     const validatedKey = validateKey(key);

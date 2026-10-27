@@ -10,6 +10,10 @@ import type { BidEventBus } from "../../realtime/bid-events";
 export function createBidRouter(repository: BidRepository, authentication: RequestHandler = authenticate, events?: Pick<BidEventBus, "publish" | "publishExtended">): Router {
   const router = Router({ mergeParams: true });
   const service = new BidService(repository, events);
+  router.get<{ lotId: string }>("/eligibility", authentication, authorize("BIDDER"), async (req, res) => {
+    validateNoQuery(req.query);
+    res.set("Cache-Control", "no-store").json(await service.eligibility(validateId(req.params.lotId), req.authUser!.id));
+  });
   router.get<{ lotId: string }>("/", async (req, res) => { res.json(await service.list(validateId(req.params.lotId), validateQuery(req.query))); });
   router.post<{ lotId: string }>("/", authentication, authorize("BIDDER"), async (req, res) => {
     validateNoQuery(req.query);

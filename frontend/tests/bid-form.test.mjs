@@ -34,14 +34,12 @@ it('rejects all closed, cancelled and not-open combinations', () => {
   for (const status of ['DRAFT', 'SCHEDULED']) assert.equal(availability({ ...auction, status }, lot), 'not-open')
   assert.equal(availability(auction, { ...lot, status: 'PENDING' }), 'not-open')
 })
-it('BIDDER sees a disabled amount and button with explicit missing eligibility explanation', () => {
+it('BIDDER waits for authenticated eligibility before enabling controls', () => {
   const html = render()
-  assert.match(html, /UTC_V2/)
+  assert.match(html, /Consultando elegibilidade/)
   assert.match(html, /input[^>]*disabled/)
   assert.match(html, /button[^>]*disabled/)
-  assert.match(html, /aria-describedby/)
-  assert.match(html, /pode reservar créditos/)
-  assert.doesNotMatch(html, /<form|type="submit"|Confirmar lance/)
+  assert.doesNotMatch(html, /Confirmar e enviar lance/)
 })
 it('anonymous users get login navigation without amount controls', () => {
   const html = render('anonymous')
