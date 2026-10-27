@@ -10,9 +10,9 @@ import { formatMoney } from '../../services/formatters'
 import { getWallet, type WalletSnapshot } from '../../services/wallet'
 import { BidConfirmation } from './BidConfirmation'
 
-function Participation({ lot, onSuccess }: { lot: Lot; onSuccess: () => void }) {
+function Participation({ lot, onSuccess, revision, syncReady }: { lot: Lot; onSuccess: () => void; revision: number; syncReady: boolean }) {
   const auth = useAuth(), inputId = useId()
-  const eligibility = usePublicResource(`eligibility:${lot.id}:${auth.user?.id}`, signal => auth.withSession((token, inner) => getBidEligibility(lot.id, token, inner), signal))
+  const eligibility = usePublicResource(`eligibility:${lot.id}:${auth.user?.id}:${revision}:${syncReady}`, signal => auth.withSession((token, inner) => getBidEligibility(lot.id, token, inner), signal), syncReady)
   const [value, setValue] = useState(''), [confirmation, setConfirmation] = useState<string | null>(null)
   const [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [balance, setBalance] = useState<WalletSnapshot | null>(null)
   const attempt = useRef<ReturnType<typeof createBidAttempt> | null>(null), sending = useRef(false)
@@ -24,9 +24,12 @@ function Participation({ lot, onSuccess }: { lot: Lot; onSuccess: () => void }) 
       setStorageReady(true)
     } catch { setMessage('Não foi possível verificar tentativas anteriores neste navegador. O envio está bloqueado; verifique o histórico antes de continuar.') }
   }, [auth.user?.id, lot.id])
-  const allowed = storageReady && eligibility.data?.eligible === true && !busy && !eligibility.loading && !eligibility.error
+  const allowed = syncReady && storageReady && eligibility.data?.eligible === true && !busy && !eligibility.loading && !eligibility.error
   async function confirm() {
     if (sending.current || !confirmation) return
+    if (!attempt.current && (!allowed || !eligibility.data?.eligible || belowMinimum(confirmation, eligibility.data.minimumAmount))) {
+      setConfirmation(null); setMessage('Os dados mudaram. Aguarde a sincronização e revise o mínimo antes de confirmar.'); return
+    }
     sending.current = true; setBusy(true); setMessage('')
     try {
       if (!attempt.current) {
@@ -53,7 +56,7 @@ function Participation({ lot, onSuccess }: { lot: Lot; onSuccess: () => void }) 
     {message && <p role="status" className="text-sm">{message}</p>}
     {balance !== null && <dl aria-label="Saldos atualizados" className="space-y-2 text-sm"><div><dt className="inline">Disponível: </dt><dd className="inline font-semibold">{formatMoney(balance.availableBalance)}</dd></div><div><dt className="inline">Reservado: </dt><dd className="inline">{formatMoney(balance.reservedBalance)}</dd></div><div><dt className="inline">Total: </dt><dd className="inline">{formatMoney(balance.totalBalance)}</dd></div></dl>}
     {confirmation ? <BidConfirmation lot={lot} amount={confirmation} busy={busy} uncertain={!!attempt.current} onConfirm={() => void confirm()} onCancel={() => setConfirmation(null)} /> : <>
-      {eligibility.loading ? <p role="status">Consultando elegibilidade...</p> : eligibility.error ? <p role="alert">Não foi possível consultar sua elegibilidade.</p> : eligibility.data?.eligible === false ? <p>{eligibility.data.reason}</p> : null}
+      {!syncReady ? <p role="status">Aguardando sincronização dos dados do lote...</p> : eligibility.loading ? <p role="status">Consultando elegibilidade...</p> : eligibility.error ? <p role="alert">Não foi possível consultar sua elegibilidade.</p> : eligibility.data?.eligible === false ? <p>{eligibility.data.reason}</p> : null}
       {allowed && eligibility.data?.eligible && <div className="space-y-2 text-sm">{eligibility.data.currentAmount !== null && <p>Lance atual consultado: {formatMoney(eligibility.data.currentAmount)}</p>}<p>Mínimo consultado: {formatMoney(eligibility.data.minimumAmount)}. Pode mudar antes do envio.</p></div>}
       <form aria-label="Preparar lance" onSubmit={event => {
         event.preventDefault(); if (!allowed || !eligibility.data?.eligible) return
@@ -70,7 +73,7 @@ function Participation({ lot, onSuccess }: { lot: Lot; onSuccess: () => void }) 
   </div>
 }
 
-export function BidForm({ auction, lot, onSuccess = () => {} }: { auction: Auction; lot: Lot; onSuccess?: () => void }) {
+export function BidForm({ auction, lot, onSuccess = () => {}, revision = 0, syncReady = true }: { auction: Auction; lot: Lot; onSuccess?: () => void; revision?: number; syncReady?: boolean }) {
   const auth = useAuth()
   const headingId = useId()
   const availability = bidAvailability(auction, lot)
@@ -84,6 +87,6 @@ export function BidForm({ auction, lot, onSuccess = () => {} }: { auction: Aucti
       : auth.status === 'unavailable' ? <div className="mt-4 text-sm"><p className="text-muted">Não foi possível verificar sua sessão. Nenhum lance será enviado.</p><button type="button" onClick={() => void auth.refresh()} className="mt-3 font-medium text-accent">Verificar sessão</button></div>
       : auth.status !== 'authenticated' ? <p className="mt-4 text-sm text-muted"><Link to="/entrar" className="font-medium text-accent">Entre na sua conta</Link> de participante para acompanhar sua participação. O envio depende da confirmação de elegibilidade do lote.</p>
       : !bidder ? <p className="mt-4 text-sm text-muted">Somente contas de participante (BIDDER) podem enviar lances.</p>
-      : <Participation key={`${lot.id}:${auth.user?.id}`} lot={lot} onSuccess={onSuccess} />}
+      : <Participation key={`${lot.id}:${auth.user?.id}`} lot={lot} onSuccess={onSuccess} revision={revision} syncReady={syncReady} />}
   </section>
 }
