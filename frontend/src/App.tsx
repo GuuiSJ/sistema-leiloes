@@ -8,6 +8,9 @@ import { AuctionDetailsPage } from './pages/AuctionDetailsPage'
 import { AuthPage } from './pages/AuthPage'
 import { AccountPage } from './pages/AccountPage'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
+import { AdminLayout } from './components/auctioneer/AdminLayout'
+import { AuctioneerOverviewPage } from './pages/AuctioneerOverviewPage'
+import { AuctioneerAuctionsPage, AuctioneerLotsPage, AuctioneerVehiclesPage } from './pages/AuctioneerListsPage'
 
 export function App() {
   return (
@@ -23,7 +26,13 @@ export function App() {
           <Route path="minha-conta" element={<AccountPage />} />
         </Route>
         <Route element={<ProtectedRoute roles={['AUCTIONEER']} />}>
-          <Route path="area-leiloeiro" element={<PlaceholderPage title="Área do leiloeiro" description="Seu perfil de leiloeiro foi confirmado. Os recursos operacionais desta área serão disponibilizados em uma próxima etapa." />} />
+          <Route path="area-leiloeiro" element={<AdminLayout />}>
+            <Route index element={<AuctioneerOverviewPage />} />
+            <Route path="veiculos" element={<AuctioneerVehiclesPage />} />
+            <Route path="leiloes" element={<AuctioneerAuctionsPage />} />
+            <Route path="lotes" element={<AuctioneerAuctionsPage selectLot />} />
+            <Route path="lotes/:auctionId" element={<AuctioneerLotsPage />} />
+          </Route>
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>

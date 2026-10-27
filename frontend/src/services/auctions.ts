@@ -30,7 +30,7 @@ const integer = (value: unknown): value is number => typeof value === 'number' &
 const isAuction = (v: unknown): v is Auction => record(v) && text(v.id) && text(v.title) &&
   (v.description === undefined || v.description === null || text(v.description)) &&
   ['DRAFT', 'SCHEDULED', 'OPEN', 'CLOSED', 'CANCELLED'].includes(String(v.status)) && date(v.startsAt) && date(v.endsAt)
-const isVehicle = (v: unknown): v is Vehicle => record(v) && text(v.id) && text(v.brand) && text(v.model) && integer(v.year) &&
+export const isVehicle = (v: unknown): v is Vehicle => record(v) && text(v.id) && text(v.brand) && text(v.model) && integer(v.year) &&
   [v.description, v.fipeCode, v.fipeReferenceMonth].every(value => value === undefined || value === null || text(value)) &&
   (v.fipeReferencePrice === undefined || v.fipeReferencePrice === null || money(v.fipeReferencePrice)) &&
   (v.fipeReferencePriceVerified === undefined || typeof v.fipeReferencePriceVerified === 'boolean') &&
@@ -39,7 +39,7 @@ const isLot = (v: unknown): v is Lot => record(v) && text(v.id) && text(v.auctio
   money(v.startingPrice) && money(v.minimumIncrement) && ['PENDING', 'OPEN', 'SOLD', 'UNSOLD', 'CANCELLED'].includes(String(v.status)) && date(v.endsAt) && isVehicle(v.vehicle)
 const isBid = (v: unknown): v is Bid => record(v) && text(v.id) && text(v.lotId) && money(v.amount) && integer(v.sequence) && date(v.createdAt)
 
-async function getPage<T>(path: string, guard: (value: unknown) => value is T, signal: AbortSignal): Promise<Page<T>> {
+export async function getPage<T>(path: string, guard: (value: unknown) => value is T, signal: AbortSignal): Promise<Page<T>> {
   const body = await getJson(path, signal)
   if (!record(body) || !Array.isArray(body.data) || !body.data.every(guard) || !record(body.pagination) ||
       !integer(body.pagination.page) || body.pagination.page < 1 || !integer(body.pagination.limit) || body.pagination.limit < 1 ||
