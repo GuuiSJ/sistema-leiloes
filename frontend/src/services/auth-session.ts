@@ -11,10 +11,11 @@ export function createAuthSession({ api, storage, now = Date.now, schedule = set
   let state: SessionState = { status: 'restoring', user: null, message: null }
   let saved: SavedSession | null = null, generation = 0, controller: AbortController | null = null
   let timer: ReturnType<typeof setTimeout> | undefined
+  const privateRequests = new Set<AbortController>()
   const listeners = new Set<() => void>()
   function publish(next: SessionState) { state = next; listeners.forEach(listener => listener()) }
   function removeStored() { try { storage.removeItem(sessionKey) } catch { /* Storage can be unavailable. */ } }
-  function stop() { generation++; controller?.abort(); controller = null; if (timer !== undefined) cancel(timer); timer = undefined }
+  function stop() { generation++; controller?.abort(); controller = null; privateRequests.forEach(request => request.abort()); privateRequests.clear(); if (timer !== undefined) cancel(timer); timer = undefined }
   function clear(message: string | null = null) {
     stop(); saved = null; removeStored(); publish({ status: 'anonymous', user: null, message })
   }
@@ -76,10 +77,29 @@ export function createAuthSession({ api, storage, now = Date.now, schedule = set
       publish({ status: 'authenticated', user: profile, message })
     } finally { signal.removeEventListener('abort', abort) }
   }
+  async function withSession<T>(read: (token: string, signal: AbortSignal) => Promise<T>, signal: AbortSignal): Promise<T> {
+    if (state.status !== 'authenticated' || !saved || saved.expiresAt <= now()) {
+      if (saved && saved.expiresAt <= now()) clear('Sua sessão expirou. Entre novamente.')
+      throw new AuthError('Entre na plataforma para consultar seus dados.', 401)
+    }
+    const current = generation, request = new AbortController()
+    const abort = () => request.abort()
+    if (signal.aborted) abort()
+    signal.addEventListener('abort', abort, { once: true }); privateRequests.add(request)
+    try {
+      const data = await read(saved.accessToken, request.signal)
+      if (current !== generation || request.signal.aborted) throw new DOMException('Consulta cancelada', 'AbortError')
+      if (!saved || saved.expiresAt <= now()) { clear('Sua sessão expirou. Entre novamente.'); throw new AuthError('Sua sessão expirou. Entre novamente.', 401) }
+      return data
+    } catch (error) {
+      if (current === generation && error instanceof AuthError && error.status === 401) clear('Sua sessão expirou ou não é mais válida. Entre novamente.')
+      throw error
+    } finally { signal.removeEventListener('abort', abort); privateRequests.delete(request) }
+  }
   return {
     getSnapshot: () => state,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener) } },
-    refresh, login, logout: () => clear(), stop,
+    refresh, login, withSession, logout: () => clear(), stop,
   }
 }
 export type AuthSession = ReturnType<typeof createAuthSession>
