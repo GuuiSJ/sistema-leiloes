@@ -8,6 +8,7 @@ export function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
   const location = useLocation()
+  const admin = location.pathname.startsWith('/area-leiloeiro')
   const navigate = useNavigate(), auth = useAuth()
   const hasSession = auth.status === 'authenticated' || auth.status === 'unavailable'
   const accountPath = hasSession ? '/minha-conta' : '/entrar'
@@ -41,7 +42,7 @@ export function Header() {
 
   return (
     <header className="border-b border-line bg-surface">
-      <div className="page-container flex min-h-22 items-center justify-between gap-2">
+      <div className={`${admin ? 'admin-container' : 'page-container'} flex min-h-22 items-center justify-between gap-2`}>
         <Link to="/" onClick={() => setMenuOpen(false)} aria-label="Leilões de automóveis — página inicial" className="flex shrink-0 items-center gap-2.5 rounded-md sm:gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-navy text-white sm:size-11">
             <CarFront size={24} strokeWidth={1.6} aria-hidden="true" />

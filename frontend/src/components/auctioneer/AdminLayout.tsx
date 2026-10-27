@@ -10,9 +10,9 @@ const navigation = [
 ]
 export function AdminLayout() {
   const auth = useAuth()
-  return <div className="page-container py-6 sm:py-10">
+  return <div className="admin-container py-6 sm:py-10">
     <header className="mb-7 flex flex-wrap items-center justify-between gap-5 rounded-2xl bg-navy p-6 text-white sm:p-8">
-      <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">Área do leiloeiro</p><h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">Seu catálogo, em perspectiva.</h1><p className="mt-3 text-sm text-slate-300">Olá, {auth.user?.name}. Acompanhe os registros da plataforma.</p></div>
+      <div><p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-200">Área do leiloeiro</p><h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">Seu catálogo, em perspectiva.</h1><p className="mt-3 text-sm text-slate-300">Olá, {auth.user?.name}. Acompanhe os registros da plataforma.</p></div>
       <Link to="/leiloes" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/20 px-4 text-sm hover:bg-white/10">Ver catálogo público<ArrowUpRight size={16} aria-hidden="true" /></Link>
     </header>
     <div className="grid items-start gap-6 lg:grid-cols-[210px_minmax(0,1fr)]">

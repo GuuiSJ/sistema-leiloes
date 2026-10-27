@@ -31,6 +31,6 @@ export function WalletTransactions({ state, page, changePage, checkSession }: Pr
         <div className="flex gap-2"><button type="button" disabled={page === 1} onClick={() => changePage(page - 1)} className="min-h-11 rounded-lg border border-line px-3 transition-colors hover:bg-accent/10 disabled:opacity-40">Anterior</button><button type="button" disabled={page >= state.data.pagination.totalPages} onClick={() => changePage(page + 1)} className="min-h-11 rounded-lg border border-line px-3 transition-colors hover:bg-accent/10 disabled:opacity-40">Próxima</button></div>
       </nav>}
     </div>
-    <p className="mt-5 text-xs leading-5 text-muted">A API não fornece descrição textual das movimentações. Valores e datas são exibidos conforme registrados, sem normalizar a origem das datas históricas.</p>
+    <p className="mt-5 text-sm leading-5 text-muted">Confira o tipo, o valor e a data de cada movimentação. Os horários são exibidos no horário de Brasília.</p>
   </section>
 }

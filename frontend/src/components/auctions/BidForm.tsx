@@ -1,3 +1,5 @@
+import { userMessage } from '../../services/user-messages'
+import { AuthError } from '../../services/auth'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { LockKeyhole } from 'lucide-react'
@@ -15,6 +17,7 @@ function Participation({ lot, onSuccess, revision, syncReady }: { lot: Lot; onSu
   const eligibility = usePublicResource(`eligibility:${lot.id}:${auth.user?.id}:${revision}:${syncReady}`, signal => auth.withSession((token, inner) => getBidEligibility(lot.id, token, inner), signal), syncReady)
   const [value, setValue] = useState(''), [confirmation, setConfirmation] = useState<string | null>(null)
   const [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [balance, setBalance] = useState<WalletSnapshot | null>(null)
+  const [amountError, setAmountError] = useState('')
   const attempt = useRef<ReturnType<typeof createBidAttempt> | null>(null), sending = useRef(false)
   const [storageReady, setStorageReady] = useState(false)
   useEffect(() => {
@@ -45,7 +48,7 @@ function Participation({ lot, onSuccess, revision, syncReady }: { lot: Lot; onSu
       catch { setBalance(null); setMessage('Lance confirmado. Não foi possível atualizar o saldo; consulte sua carteira.') }
       onSuccess()
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Resultado não confirmado. Repita a mesma tentativa.')
+      setMessage(error instanceof AuthError ? userMessage(error, 'Resultado não confirmado. Repita a mesma tentativa.') : 'Resultado não confirmado. Repita a mesma tentativa.')
       if (error instanceof BidError && !error.retrySameKey && [400, 403, 404, 409].includes(error.status ?? 0)) {
         try { clearPendingBid(auth.user!.id, lot.id) } catch { setStorageReady(false) }
         attempt.current = null; setConfirmation(null); eligibility.retry()
@@ -61,11 +64,12 @@ function Participation({ lot, onSuccess, revision, syncReady }: { lot: Lot; onSu
       <form aria-label="Preparar lance" onSubmit={event => {
         event.preventDefault(); if (!allowed || !eligibility.data?.eligible) return
         const amount = parseBidAmount(value)
-        if (!amount || belowMinimum(amount, eligibility.data.minimumAmount)) { setMessage('Informe um valor positivo, sem separador de milhar, com até duas casas decimais e igual ou superior ao mínimo.'); return }
-        setMessage(''); setConfirmation(amount)
+        if (!amount || belowMinimum(amount, eligibility.data.minimumAmount)) { setAmountError('Informe um valor igual ou superior ao mínimo, usando vírgula para os centavos. Ex.: 1500,50.'); return }
+        setAmountError(''); setMessage(''); setConfirmation(amount)
       }}>
         <label htmlFor={inputId} className="block text-sm font-medium">Valor do lance (R$)</label>
-        <input id={inputId} inputMode="decimal" type="text" value={value} onChange={event => setValue(event.target.value)} disabled={!allowed} placeholder="Ex.: 1500,50" className="mt-2 w-full rounded-xl border border-line bg-canvas px-4 py-3 disabled:opacity-50" />
+        <input id={inputId} inputMode="decimal" type="text" value={value} onChange={event => { setValue(event.target.value); setAmountError('') }} aria-invalid={!!amountError} aria-describedby={amountError ? `${inputId}-error` : undefined} disabled={!allowed} placeholder="Ex.: 1500,50" className="mt-2 w-full rounded-xl border border-line bg-canvas px-4 py-3 disabled:opacity-50" />
+        {amountError && <p id={`${inputId}-error`} role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">{amountError}</p>}
         <button disabled={!allowed} className="mt-3 w-full rounded-xl bg-accent px-4 py-3 font-semibold text-white disabled:opacity-50">Revisar lance</button>
       </form>
       <button type="button" onClick={eligibility.retry} className="text-sm font-medium text-accent">Atualizar elegibilidade</button>
@@ -86,7 +90,7 @@ export function BidForm({ auction, lot, onSuccess = () => {}, revision = 0, sync
       : auth.status === 'restoring' ? <p className="mt-4 text-sm text-muted" role="status">Verificando sua sessão...</p>
       : auth.status === 'unavailable' ? <div className="mt-4 text-sm"><p className="text-muted">Não foi possível verificar sua sessão. Nenhum lance será enviado.</p><button type="button" onClick={() => void auth.refresh()} className="mt-3 font-medium text-accent">Verificar sessão</button></div>
       : auth.status !== 'authenticated' ? <p className="mt-4 text-sm text-muted"><Link to="/entrar" className="font-medium text-accent">Entre na sua conta</Link> de participante para acompanhar sua participação. O envio depende da confirmação de elegibilidade do lote.</p>
-      : !bidder ? <p className="mt-4 text-sm text-muted">Somente contas de participante (BIDDER) podem enviar lances.</p>
+      : !bidder ? <p className="mt-4 text-sm text-muted">Somente contas de participante podem enviar lances.</p>
       : <Participation key={`${lot.id}:${auth.user?.id}`} lot={lot} onSuccess={onSuccess} revision={revision} syncReady={syncReady} />}
   </section>
 }

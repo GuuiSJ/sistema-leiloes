@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './api'
+import { userMessage } from './user-messages'
 
 export type UserRole = 'BIDDER' | 'AUCTIONEER'
 export interface SessionUser { id: string; name: string; email: string; role: UserRole; createdAt: string }
@@ -6,7 +7,7 @@ export interface LoginInput { email: string; password: string }
 export interface RegisterInput extends LoginInput { name: string }
 export interface LoginResponse { user: SessionUser; accessToken: string; tokenType: 'Bearer'; expiresIn: number }
 export class AuthError extends Error {
-  constructor(message: string, readonly status?: number) { super(message) }
+  constructor(message: string, readonly status?: number) { super(userMessage(message)) }
 }
 export type AuthFields = Partial<Record<'name' | 'email' | 'password' | 'confirmation', string>>
 export function validateAuthFields(input: LoginInput & { name?: string; confirmation?: string }, register = false): AuthFields {
@@ -14,9 +15,10 @@ export function validateAuthFields(input: LoginInput & { name?: string; confirma
   if (register && (!input.name || input.name.trim().length < 2 || input.name.trim().length > 120)) errors.name = 'Informe um nome entre 2 e 120 caracteres.'
   const email = input.email.trim()
   if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Informe um e-mail válido.'
-  if (!input.password || (register && input.password.length < 8) || new TextEncoder().encode(input.password).length > 72 || input.password.includes('\0')) {
-    errors.password = register ? 'Use pelo menos 8 caracteres e no máximo 72 bytes na senha.' : 'Informe uma senha válida, com no máximo 72 bytes.'
-  }
+  if (!input.password) errors.password = 'Preencha este campo.'
+  else if (new TextEncoder().encode(input.password).length > 72) errors.password = 'A senha informada é muito longa.'
+  else if (input.password.includes('\0')) errors.password = 'A senha contém um caractere inválido.'
+  else if (register && input.password.length < 8) errors.password = 'Use pelo menos 8 caracteres na senha.'
   if (register && input.confirmation !== undefined && input.confirmation !== input.password) errors.confirmation = 'As senhas precisam ser iguais.'
   return errors
 }

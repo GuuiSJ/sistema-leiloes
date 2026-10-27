@@ -1,7 +1,9 @@
+import { userMessage } from './user-messages'
+
 export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status?: number) { super(message) }
+  constructor(message: string, readonly status?: number) { super(userMessage(message)) }
 }
 
 export async function getJson(path: string, signal: AbortSignal): Promise<unknown> {

@@ -1,5 +1,6 @@
 import { API_BASE_URL } from './api'
 import { AuthError } from './auth'
+import { eligibilityMessage } from './user-messages'
 export class BidError extends AuthError {
   constructor(message: string, status?: number, readonly retrySameKey = false) { super(message, status) }
 }
@@ -55,7 +56,7 @@ async function request(lotId: string, token: string, signal: AbortSignal, attemp
 }
 export async function getBidEligibility(lotId: string, token: string, signal: AbortSignal): Promise<Eligibility> {
   const body = await request(lotId, token, signal) as Partial<Eligibility>
-  if (body?.eligible === false && typeof body.reason === 'string') return { eligible: false, reason: body.reason }
+  if (body?.eligible === false && typeof body.reason === 'string') return { eligible: false, reason: eligibilityMessage(body.reason) }
   if (body?.eligible === true && money(body.minimumAmount) && BigInt(body.minimumAmount.replace('.', '')) > 0n && (body.currentAmount === null || money(body.currentAmount)) && typeof body.endsAt === 'string' && Number.isFinite(Date.parse(body.endsAt)) && typeof body.checkedAt === 'string' && Number.isFinite(Date.parse(body.checkedAt)) && Date.parse(body.endsAt) > Date.parse(body.checkedAt)) {
     return { eligible: true, minimumAmount: body.minimumAmount, currentAmount: body.currentAmount, checkedAt: body.checkedAt, endsAt: body.endsAt }
   }

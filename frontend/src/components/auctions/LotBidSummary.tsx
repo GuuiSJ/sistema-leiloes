@@ -18,6 +18,6 @@ export function LotBidSummary({ auction, lot, latest, available }: { auction: Au
     </dl>
     {minimum && <p className="text-xs leading-5 text-muted">Referência calculada com os dados consultados, não uma garantia de aceitação. A disponibilidade operacional deste leilão não é informada pela consulta pública.</p>}
     <LotCountdown auction={auction} lot={lot} />
-    <p className="text-xs leading-5 text-muted">As notificações em tempo real atualizam os dados por consulta à API. A participação depende da verificação autenticada abaixo.</p>
+    <p className="text-sm leading-5 text-muted">Os dados são atualizados durante o leilão. Entre na sua conta para verificar se você pode participar.</p>
   </section>
 }

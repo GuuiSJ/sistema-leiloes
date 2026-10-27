@@ -95,7 +95,7 @@ it('cancellation uses PATCH /cancel without a body and requires the cancelled re
   assert.equal((await api.cancelAuction(id, 'fixture-token', signal())).status, 'CANCELLED')
 })
 it('maps validation, permission, not-found, conflict and rate-limit failures without raw internals', async () => {
-  for (const [status, message] of [[400, /campos e as datas/], [401, /sessão expirou/], [403, /responsável/], [404, /não encontrado/], [409, /compatibilidade do registro/], [429, /Muitas tentativas/]]) {
+  for (const [status, message] of [[400, /campos e as datas/], [401, /sessão expirou/], [403, /responsável/], [404, /não encontrado/], [409, /Atualize os dados/], [429, /Muitas tentativas/]]) {
     globalThis.fetch = async () => Response.json({ message: 'private SQL details' }, { status })
     await assert.rejects(api.updateAuction(id, draft(), 'fixture-token', signal()), error => { assert.equal(error.status, status); assert.match(error.message, message); assert.doesNotMatch(error.message, /SQL/); assert.equal(error.uncertain, false); return true })
   }

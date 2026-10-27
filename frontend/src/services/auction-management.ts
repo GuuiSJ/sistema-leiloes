@@ -23,7 +23,8 @@ export function validAuctionDate(value: string): boolean {
 export function validateAuction(draft: AuctionDraft): AuctionFields {
   const errors: AuctionFields = {}
   if (!draft.title.trim() || draft.title.trim().length > 150 || draft.title.includes('\0')) errors.title = 'Informe um título entre 1 e 150 caracteres.'
-  if (draft.description.length > 10000 || draft.description.includes('\0')) errors.description = 'Use até 10.000 caracteres, sem caracteres nulos.'
+  if (draft.description.length > 10000) errors.description = 'Use até 10.000 caracteres na descrição.'
+  else if (draft.description.includes('\0')) errors.description = 'A descrição contém um caractere inválido. Revise o texto.'
   for (const field of ['startsAt', 'endsAt'] as const) if (!validAuctionDate(draft[field])) errors[field] = 'Selecione uma data e um horário válidos no horário de Brasília.'
   if (!errors.startsAt && !errors.endsAt && Date.parse(draft.endsAt) <= Date.parse(draft.startsAt)) errors.endsAt = 'O término deve ser posterior ao início.'
   return errors
@@ -50,7 +51,7 @@ async function mutate(operation: 'create' | 'update' | 'cancel', id: string | un
         : response.status === 401 ? 'Sua sessão expirou. Entre novamente.'
           : response.status === 403 ? 'Operação não permitida. É necessário ser leiloeiro e responsável pelo leilão para alterá-lo ou cancelá-lo.'
             : response.status === 404 ? 'Leilão não encontrado. Atualize a listagem.'
-              : response.status === 409 ? 'A operação foi bloqueada pelas regras de estado, prazo, compatibilidade do registro, vínculos ou alterações simultâneas. Atualize os dados antes de continuar.'
+              : response.status === 409 ? 'Não foi possível alterar este leilão. O prazo, a situação ou os registros vinculados podem impedir a alteração. Atualize os dados antes de continuar.'
                 : response.status === 429 ? 'Muitas tentativas. Aguarde antes de continuar.' : 'Não foi possível confirmar o resultado. Consulte a listagem antes de tentar novamente.'
       throw new AuctionManagementError(message, response.status, response.status >= 500)
     }

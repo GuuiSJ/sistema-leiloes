@@ -30,7 +30,7 @@ export function AuctionEditor({ auction, reload = () => {} }: { auction?: Auctio
       await auth.withSession((token, signal) => operation === 'cancel' ? cancelAuction(auction!.id, token, signal) : auction ? updateAuction(auction.id, draft, token, signal) : createAuction(draft, token, signal), controller.signal)
       if (active.current) navigate('/area-leiloeiro/leiloes', { replace: true, state: { auctionNotice: operation === 'cancel' ? 'Leilão cancelado com sucesso.' : auction ? 'Leilão atualizado com sucesso.' : 'Leilão cadastrado como rascunho com sucesso.' } })
     } catch (error) {
-      if (active.current) { setFailure(error instanceof AuctionManagementError ? error : new AuctionManagementError(error instanceof Error ? error.message : 'Não foi possível concluir a operação.')); setConfirmCancel(false); setTimeout(() => errorBox.current?.focus(), 0) }
+      if (active.current) { setFailure(error instanceof AuctionManagementError ? error : new AuctionManagementError('Não foi possível concluir a operação. Tente novamente.')); setConfirmCancel(false); setTimeout(() => errorBox.current?.focus(), 0) }
     } finally { sending.current = false; if (active.current) setBusy(null) }
   }
   function submit(event: FormEvent<HTMLFormElement>) {

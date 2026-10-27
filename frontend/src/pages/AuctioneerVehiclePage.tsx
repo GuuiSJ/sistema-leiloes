@@ -34,7 +34,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
       await auth.withSession((token, signal) => operation === 'delete' ? deleteVehicle(vehicle!.id, token, signal) : vehicle ? updateVehicle(vehicle.id, draft, token, signal) : createVehicle(draft, token, signal), controller.signal)
       if (active.current) navigate('/area-leiloeiro/veiculos', { replace: true, state: { vehicleNotice: operation === 'delete' ? 'Veículo excluído com sucesso.' : vehicle ? 'Veículo atualizado com sucesso.' : 'Veículo cadastrado com sucesso.' } })
     } catch (error) {
-      if (active.current) { setFailure(error instanceof VehicleError ? error : new VehicleError(error instanceof Error ? error.message : 'Não foi possível concluir a operação.')); setTimeout(() => errorBox.current?.focus(), 0) }
+      if (active.current) { setFailure(error instanceof VehicleError ? error : new VehicleError('Não foi possível concluir a operação. Tente novamente.')); setTimeout(() => errorBox.current?.focus(), 0) }
     } finally { sending.current = false; if (active.current) setBusy(null) }
   }
   function submit(event: FormEvent<HTMLFormElement>) {

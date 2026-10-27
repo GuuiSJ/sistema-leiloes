@@ -31,7 +31,7 @@ export function LotEditor({ auction, lot, reload = () => {} }: { auction: Auctio
       await auth.withSession((token, signal) => operation === 'delete' ? deleteLot(auction.id, lot!.id, token, signal) : lot ? updateLot(auction.id, lot.id, draft, token, signal) : createLot(auction.id, draft, token, signal), controller.signal)
       if (active.current) navigate(listPath, { replace: true, state: { lotNotice: operation === 'delete' ? 'Lote excluído com sucesso.' : lot ? 'Lote atualizado com sucesso.' : 'Lote cadastrado com sucesso.' } })
     } catch (error) {
-      if (active.current) { setFailure(error instanceof LotManagementError ? error : new LotManagementError(error instanceof Error ? error.message : 'Não foi possível concluir a operação.')); setConfirmDelete(false); setTimeout(() => errorBox.current?.focus(), 0) }
+      if (active.current) { setFailure(error instanceof LotManagementError ? error : new LotManagementError('Não foi possível concluir a operação. Tente novamente.')); setConfirmDelete(false); setTimeout(() => errorBox.current?.focus(), 0) }
     } finally { sending.current = false; if (active.current) setBusy(null) }
   }
   function submit(event: FormEvent<HTMLFormElement>) {

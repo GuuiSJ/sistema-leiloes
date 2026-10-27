@@ -23,8 +23,8 @@ export function AdminPagination({ pagination: p, change }: { pagination: Paginat
   return <nav aria-label="Paginação dos registros" className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm"><p className="text-muted">{p.total.toLocaleString('pt-BR')} registros · Página {p.page} de {Math.max(1, p.totalPages)}</p><div className="flex gap-2"><button className={adminButton} type="button" disabled={p.page <= 1} onClick={() => change(p.page - 1)}>Anterior</button><button className={adminButton} type="button" disabled={p.page >= p.totalPages} onClick={() => change(p.page + 1)}>Próxima</button></div></nav>
 }
 export function AdminTable({ headers, children }: { headers: string[]; children: ReactNode }) {
-  return <div className="overflow-x-auto rounded-2xl border border-line bg-surface"><table className="w-full text-left text-sm"><caption className="sr-only">Registros consultados</caption><thead className="border-b border-line bg-canvas text-xs text-muted"><tr>{headers.map(header => <th key={header} scope="col" className="whitespace-nowrap px-5 py-4 font-medium">{header}</th>)}</tr></thead><tbody className="divide-y divide-line">{children}</tbody></table></div>
+  return <div className="overflow-x-auto rounded-2xl border border-line bg-surface"><table className="w-full text-left text-sm"><caption className="sr-only">Registros consultados</caption><thead className="border-b border-line bg-canvas text-sm text-muted"><tr>{headers.map(header => <th key={header} scope="col" className="whitespace-nowrap px-5 py-4 font-medium">{header}</th>)}</tr></thead><tbody className="divide-y divide-line">{children}</tbody></table></div>
 }
 export function StatusBadge({ children }: { children: ReactNode }) {
-  return <span className="inline-flex whitespace-nowrap rounded-full border border-line bg-accent/5 px-2.5 py-1 text-xs font-medium">{children}</span>
+  return <span className="inline-flex whitespace-nowrap rounded-full border border-line bg-accent/5 px-2.5 py-1 text-sm font-medium">{children}</span>
 }
