@@ -7,13 +7,14 @@ import '@fontsource/inter/latin-600.css'
 import '@fontsource/inter/latin-700.css'
 import { App } from './App'
 import { ThemeProvider } from './components/theme/ThemeProvider'
+import { AuthProvider } from './components/auth/AuthProvider'
 import './styles/global.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
       <BrowserRouter>
-        <App />
+        <AuthProvider><App /></AuthProvider>
       </BrowserRouter>
     </ThemeProvider>
   </StrictMode>,

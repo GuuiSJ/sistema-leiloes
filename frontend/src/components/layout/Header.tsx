@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { CarFront, LogIn, Menu, X } from 'lucide-react'
-import { Link, NavLink, useLocation } from 'react-router'
+import { CarFront, LoaderCircle, LogIn, LogOut, Menu, UserRound, X } from 'lucide-react'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router'
 import { ThemeToggle } from '../ThemeToggle'
+import { useAuth } from '../../hooks/useAuth'
 
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
   const location = useLocation()
+  const navigate = useNavigate(), auth = useAuth()
+  const hasSession = auth.status === 'authenticated' || auth.status === 'unavailable'
+  const accountPath = hasSession ? '/minha-conta' : '/entrar'
+  const accountLabel = auth.status === 'unavailable' ? 'Verificar sessão' : hasSession ? 'Minha conta' : 'Entrar'
+  function logout() { auth.logout(); setMenuOpen(false); navigate('/', { replace: true }) }
 
   useEffect(() => {
     if (!menuOpen) return
@@ -50,11 +56,12 @@ export function Header() {
         </nav>
         <div className="flex items-center gap-1.5 sm:gap-3">
           <ThemeToggle />
-          <Link to="/entrar" onClick={() => setMenuOpen(false)} aria-label="Entrar"
-            aria-current={location.pathname === '/entrar' ? 'page' : undefined}
+          {auth.status === 'restoring' ? <span role="status" aria-label="Verificando sessão" className="flex size-11 items-center justify-center text-muted"><LoaderCircle size={18} className="animate-spin" aria-hidden="true" /></span> : <Link to={accountPath} onClick={() => setMenuOpen(false)} aria-label={accountLabel}
+            aria-current={location.pathname === accountPath ? 'page' : undefined}
             className="flex size-11 items-center justify-center gap-2 rounded-full bg-accent text-sm font-semibold text-white transition-colors hover:bg-blue-700 sm:w-auto sm:px-5">
-            <LogIn size={17} aria-hidden="true" /><span className="hidden sm:inline">Entrar</span>
-          </Link>
+            {hasSession ? <UserRound size={17} aria-hidden="true" /> : <LogIn size={17} aria-hidden="true" />}<span className="hidden sm:inline">{accountLabel}</span>
+          </Link>}
+          {hasSession && <button type="button" onClick={logout} aria-label="Sair da conta" title="Sair da conta" className="hidden size-11 items-center justify-center rounded-full text-muted transition-colors hover:bg-accent/10 hover:text-ink md:inline-flex"><LogOut size={18} aria-hidden="true" /></button>}
           <button type="button" ref={menuButton} onClick={() => setMenuOpen(open => !open)}
             aria-expanded={menuOpen} aria-controls="mobile-navigation" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
             className="inline-flex size-11 items-center justify-center rounded-full text-ink transition-colors hover:bg-accent/10 md:hidden">
@@ -63,7 +70,13 @@ export function Header() {
         </div>
       </div>
       <nav id="mobile-navigation" aria-label="Navegação para celular" hidden={!menuOpen} className="border-t border-line md:hidden">
-        <div className="page-container flex flex-col gap-1 py-3">{renderNavigation(true)}</div>
+        <div className="page-container flex flex-col gap-1 py-3">{renderNavigation(true)}
+          {hasSession && <>
+            <Link to="/minha-conta" onClick={() => setMenuOpen(false)} className="rounded-lg px-4 py-3 text-sm font-medium text-accent dark:text-blue-300">Minha conta</Link>
+            {auth.user?.role === 'AUCTIONEER' && <Link to="/area-leiloeiro" onClick={() => setMenuOpen(false)} className="rounded-lg px-4 py-3 text-sm font-medium text-muted">Área do leiloeiro</Link>}
+            <button type="button" onClick={logout} className="rounded-lg px-4 py-3 text-left text-sm font-medium text-muted hover:bg-accent/5">Sair da conta</button>
+          </>}
+        </div>
       </nav>
     </header>
   )
