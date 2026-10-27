@@ -42,7 +42,7 @@ describe("Agendamento e abertura HTTP (JWT real)", () => {
   beforeEach(() => {
     now = new Date(); auditCount = 0; failAudit = false; users.clear();
     for (const id of [ownerId, otherId, bidderId]) users.set(id, { id, name: "Privado", email: "private@example.com", role: id === bidderId ? "BIDDER" : "AUCTIONEER", createdAt: now });
-    auction = { id: auctionId, organizerId: ownerId, title: "Fixture", description: null, status: "DRAFT", startsAt: new Date(now.getTime() + 86400000), endsAt: new Date(now.getTime() + 172800000), createdAt: now, updatedAt: now };
+    auction = { id: auctionId, organizerId: ownerId, ...{ temporalGeneration: "UTC_V2" }, title: "Fixture", description: null, status: "DRAFT", startsAt: new Date(now.getTime() + 86400000), endsAt: new Date(now.getTime() + 172800000), createdAt: now, updatedAt: now };
     lots = [1, 2].map(number => ({ id: randomUUID(), auctionId, vehicleId: randomUUID(), number, startingPrice: new Prisma.Decimal(100), minimumIncrement: new Prisma.Decimal(10), status: "PENDING", winnerId: null, endsAt: null, version: 0, createdAt: now, updatedAt: now, vehicleOwnerId: ownerId, hasFinancialHistory: false }));
   });
   after(async () => { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(e => e ? reject(e) : resolve())); });

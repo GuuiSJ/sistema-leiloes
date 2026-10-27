@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from "../../generated/prisma/client";
 import { HttpError } from "../../errors/http-error";
+import { readAuctionGeneration, requireOperationalAuction } from "../temporal/auction-generation";
 import { getPrisma } from "../../lib/prisma";
 import type { AuctionLifecycleRepository, PrepareOpeningAudit } from "./auction-lifecycle.types";
 import { prepareOpeningAudit } from "../audit/opening-audit";
@@ -18,7 +19,9 @@ export function createAuctionLifecycleRepository(client: () => PrismaClient = ge
             await tx.$queryRaw`SELECT "id" FROM "Auction" WHERE "id" = ${id}::uuid FOR UPDATE`;
             const auction = await tx.auction.findUnique({ where: { id } });
             if (!auction) throw new HttpError(404, "Leilão não encontrado.");
+            Object.assign(auction, await readAuctionGeneration(tx, auction.id));
             if (auction.organizerId !== authorId) throw new HttpError(403, "Somente o responsável pode agendar ou abrir este leilão.");
+            requireOperationalAuction(auction);
             await tx.$queryRaw`SELECT "id" FROM "Lot" WHERE "auctionId" = ${id}::uuid ORDER BY "id" FOR UPDATE`;
             const lots = await tx.lot.findMany({ where: { auctionId: id }, orderBy: { id: "asc" } });
             if (lots.some(lot => !initialLots.some(initial => initial.id === lot.id && initial.vehicleId === lot.vehicleId)) || lots.length !== initialLots.length) {

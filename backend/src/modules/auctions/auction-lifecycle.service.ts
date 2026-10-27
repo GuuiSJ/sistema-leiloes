@@ -1,3 +1,4 @@
+import { requireOperationalAuction } from "../temporal/auction-generation";
 import { HttpError } from "../../errors/http-error";
 import { publicAuction } from "./auction.service";
 import type { AuctionLifecycleRepository, AuctionTransition, LifecycleDecision, LifecycleState } from "./auction-lifecycle.types";
@@ -7,6 +8,7 @@ export class AuctionLifecycleService {
   private decide(state: LifecycleState, operation: AuctionTransition, authorId: string): LifecycleDecision {
     const { auction, lots, now } = state;
     if (auction.organizerId !== authorId) throw new HttpError(403, "Somente o responsável pode agendar ou abrir este leilão.");
+    requireOperationalAuction(auction);
     const status = operation === "schedule" ? "SCHEDULED" : "OPEN";
     if (auction.status === status) return { status, openLotIds: [], unchanged: true };
     const source = operation === "schedule" ? "DRAFT" : "SCHEDULED";

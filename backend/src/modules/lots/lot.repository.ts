@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "../../generated/prisma/client";
+import { readAuctionGeneration, requireOperationalAuction } from "../temporal/auction-generation";
 import { getPrisma } from "../../lib/prisma";
 import { HttpError } from "../../errors/http-error";
 import type { LotRepository } from "./lot.types";
@@ -32,6 +33,7 @@ export function createLotRepository(client: () => PrismaClient = getPrisma): Lot
             await tx.$queryRaw`SELECT "id" FROM "Auction" WHERE "id" = ${command.auctionId}::uuid FOR UPDATE`;
             const auction = await tx.auction.findUnique({ where: { id: command.auctionId } });
             if (!auction) throw new HttpError(404, "Leilão não encontrado.");
+            Object.assign(auction, await readAuctionGeneration(tx, auction.id));
             if (initial) await tx.$queryRaw`SELECT "id" FROM "Lot" WHERE "id" = ${initial.id}::uuid FOR UPDATE`;
             const lot = initial ? await tx.lot.findFirst({
               where: { id: initial.id, auctionId: command.auctionId },
@@ -45,6 +47,7 @@ export function createLotRepository(client: () => PrismaClient = getPrisma): Lot
             if (initial && !currentVehicle) throw new HttpError(409, "Veículo associado não está disponível.");
             const audit = lot ? await tx.auditEvent.findFirst({ where: { entityId: lot.id }, select: { id: true } }) : null;
             validate({ auction, lot, vehicle, currentVehicle, hasHistory: !!lot && (lot._count.bids > 0 || lot._count.reservations > 0 || lot.receipt !== null || audit !== null) });
+            requireOperationalAuction(auction);
             if (command.operation === "create") {
               return tx.lot.create({ data: { ...command.input, auctionId: command.auctionId, status: "PENDING" }, include: { vehicle: true, auction: { select: { endsAt: true } }, receipt: { select: { winningBidId: true, finalAmount: true } } } });
             }

@@ -1,7 +1,7 @@
 import "../config/env";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import { getPrisma, disconnectDatabase } from "../lib/prisma";
+import { getPrisma, connectDatabase, disconnectDatabase } from "../lib/prisma";
 import type { UserRole } from "../generated/prisma/client";
 
 interface PromotionDependencies {
@@ -59,7 +59,11 @@ async function main(): Promise<void> {
       nodeEnv: process.env.NODE_ENV,
       databaseUrl: process.env.DATABASE_URL,
       interactive: Boolean(stdin.isTTY && stdout.isTTY),
-      findUser: (email) => getPrisma().user.findUnique({ where: { email }, select: { id: true, role: true } }),
+      async findUser(email) {
+        // Argument/local-environment checks above still run before any connection.
+        await connectDatabase();
+        return getPrisma().user.findUnique({ where: { email }, select: { id: true, role: true } });
+      },
       async promote(id, email) {
         // SQL parametrizado via Prisma: alterar literalmente só role, sem @updatedAt.
         const count = await getPrisma().$executeRaw`

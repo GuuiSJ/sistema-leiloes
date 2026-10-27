@@ -1,3 +1,4 @@
+import { requireOperationalAuction } from "../temporal/auction-generation";
 import { HttpError } from "../../errors/http-error";
 import { Prisma } from "../../generated/prisma/client";
 import type { BidRecord, BidRepository, BidQuery, BidState } from "./bid.types";
@@ -10,6 +11,7 @@ function publicBid(bid: BidRecord) {
 }
 function validateState(state: BidState, amount: Prisma.Decimal, userId: string): void {
   if (state.auction.organizerId === userId || state.vehicleOwnerId === userId) throw new HttpError(403, "Não é permitido dar lance no próprio leilão ou veículo.");
+  requireOperationalAuction(state.auction);
   if (state.auction.status !== "OPEN" || state.lot.status !== "OPEN" || state.auction.startsAt > state.now || effectiveLotEndsAt(state.lot, state.auction) <= state.now || state.lot.winnerId !== null || state.hasReceipt) {
     throw new HttpError(409, "Leilão e lote devem estar abertos e dentro do período de lances.");
   }

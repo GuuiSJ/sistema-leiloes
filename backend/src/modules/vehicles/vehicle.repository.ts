@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "../../generated/prisma/client";
+import { requireOperationalAuction, type TemporalMarker } from "../temporal/auction-generation";
 import { getPrisma } from "../../lib/prisma";
 import { HttpError } from "../../errors/http-error";
 import type { VehicleRepository } from "./vehicle.types";
@@ -30,8 +31,8 @@ export function createVehicleRepository(client: () => PrismaClient = getPrisma):
             await tx.$queryRaw`SELECT "id" FROM "Vehicle" WHERE "id" = ${id}::uuid FOR UPDATE`;
             const vehicle = await tx.vehicle.findUnique({ where: { id } });
             if (!vehicle) throw new HttpError(404, "Veículo não encontrado.");
-            await tx.$queryRaw`
-              SELECT a."id" FROM "Auction" a
+            const linkedAuctions = await tx.$queryRaw<TemporalMarker[]>`
+              SELECT a."id", a."temporalGeneration" FROM "Auction" a
               WHERE EXISTS (SELECT 1 FROM "Lot" l WHERE l."auctionId" = a."id" AND l."vehicleId" = ${id}::uuid)
               ORDER BY a."id" FOR UPDATE`;
             await tx.$queryRaw`SELECT "id" FROM "Lot" WHERE "vehicleId" = ${id}::uuid ORDER BY "id" FOR UPDATE`;
@@ -57,6 +58,7 @@ export function createVehicleRepository(client: () => PrismaClient = getPrisma):
               })),
               hasAuditHistory: audit !== null,
             });
+            for (const auction of linkedAuctions) requireOperationalAuction(auction);
             if (decision.operation === "delete") return tx.vehicle.delete({ where: { id } });
             // A manually revised FIPE reference still does not attest an external consultation.
             return tx.vehicle.update({ where: { id }, data: { ...decision.data, fipeConsultedAt: null } });

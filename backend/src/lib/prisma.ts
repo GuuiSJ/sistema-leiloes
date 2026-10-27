@@ -1,10 +1,18 @@
 import "../config/env";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client";
+import { temporalPoolConfig } from "../config/temporal";
+import { temporalRuntime } from "../modules/temporal/temporal-runtime";
 
 let client: PrismaClient | undefined;
 
 export function getPrisma(): PrismaClient {
+  temporalRuntime.assertClientAccess();
+  return unverifiedPrisma();
+}
+
+// Startup alone may access the candidate pool before compatibility verification.
+function unverifiedPrisma(): PrismaClient {
   if (!client) {
     const connectionString = process.env.DATABASE_URL;
 
@@ -12,10 +20,7 @@ export function getPrisma(): PrismaClient {
       throw new Error("DATABASE_URL não configurada.");
     }
 
-    const adapter = new PrismaPg({
-      connectionString,
-      connectionTimeoutMillis: 5000,
-    });
+    const adapter = new PrismaPg(temporalPoolConfig(connectionString, temporalRuntime.mode));
 
     // Não registrar queries ou erros do driver: podem conter dados sensíveis.
     client = new PrismaClient({ adapter, log: [], errorFormat: "minimal" });
@@ -25,12 +30,14 @@ export function getPrisma(): PrismaClient {
 }
 
 export async function connectDatabase(): Promise<void> {
-  const prisma = getPrisma();
+  temporalRuntime.reset();
+  const prisma = unverifiedPrisma();
   await prisma.$connect();
-  await prisma.$queryRaw`SELECT 1`;
+  await temporalRuntime.verify(prisma);
 }
 
 export async function disconnectDatabase(): Promise<void> {
+  temporalRuntime.reset();
   if (client) {
     await client.$disconnect();
     client = undefined;

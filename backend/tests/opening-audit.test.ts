@@ -30,7 +30,7 @@ describe("Formato e verificação da auditoria de abertura", () => {
     const a = event();
     assert.throws(() => openingAuditHash({ ...a, publicData: { ...(a.publicData as Prisma.JsonObject), email: "private@example.com" } }));
     assert.throws(() => openingAuditHash({ ...a, action: "BID_PLACED" }));
-    assert.throws(() => openingAuditHash({ ...a, publicData: { formatVersion: 2, status: "OPEN", lotIds: [randomUUID()] } }));
+    assert.throws(() => openingAuditHash({ ...a, publicData: { formatVersion: 3, status: "OPEN", lotIds: [randomUUID()] } }));
   });
   it("novos eventos exigem formatos públicos estritos e estados compatíveis", () => {
     const a = { ...event(), action: "FUNDS_DEBITED" as const, entityType: "Lot", publicData: { formatVersion: 1, auctionId: randomUUID(), status: "SOLD" } };

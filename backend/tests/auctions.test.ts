@@ -32,7 +32,7 @@ describe("Gerenciamento de leilões HTTP (persistência em memória)", () => {
   const repository: AuctionRepository = {
     async create(input, organizerId) {
       if (fail) throw new Error("Falha simulada");
-      const auction: Auction = { ...input, organizerId, id: randomUUID(), status: "DRAFT", createdAt: new Date(), updatedAt: new Date() };
+      const auction: Auction = { ...input, organizerId, ...{ temporalGeneration: "UTC_V2" }, id: randomUUID(), status: "DRAFT", createdAt: new Date(), updatedAt: new Date() };
       auctions.set(auction.id, auction);
       return auction;
     },
@@ -87,7 +87,7 @@ describe("Gerenciamento de leilões HTTP (persistência em memória)", () => {
     for (const [id, role] of [[ownerId, "AUCTIONEER"], [otherId, "AUCTIONEER"], [bidderId, "BIDDER"]] as const) {
       users.set(id, { id, role, name: "Pessoa privada", email: `${id}@example.com`, createdAt: new Date() });
     }
-    auctions.set(auctionId, { id: auctionId, organizerId: ownerId, title: "Leilão inicial", description: null, startsAt: future(), endsAt: later(), status: "DRAFT", createdAt: new Date(), updatedAt: new Date() });
+    auctions.set(auctionId, { id: auctionId, organizerId: ownerId, ...{ temporalGeneration: "UTC_V2" }, title: "Leilão inicial", description: null, startsAt: future(), endsAt: later(), status: "DRAFT", createdAt: new Date(), updatedAt: new Date() });
   });
   after(async () => {
     server.closeAllConnections();
