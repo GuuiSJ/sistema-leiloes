@@ -11,6 +11,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { AdminLayout } from './components/auctioneer/AdminLayout'
 import { AuctioneerOverviewPage } from './pages/AuctioneerOverviewPage'
 import { AuctioneerAuctionsPage, AuctioneerLotsPage, AuctioneerVehiclesPage } from './pages/AuctioneerListsPage'
+import { AuctioneerVehiclePage } from './pages/AuctioneerVehiclePage'
 
 export function App() {
   return (
@@ -29,6 +30,8 @@ export function App() {
           <Route path="area-leiloeiro" element={<AdminLayout />}>
             <Route index element={<AuctioneerOverviewPage />} />
             <Route path="veiculos" element={<AuctioneerVehiclesPage />} />
+            <Route path="veiculos/novo" element={<AuctioneerVehiclePage create />} />
+            <Route path="veiculos/:vehicleId/editar" element={<AuctioneerVehiclePage />} />
             <Route path="leiloes" element={<AuctioneerAuctionsPage />} />
             <Route path="lotes" element={<AuctioneerAuctionsPage selectLot />} />
             <Route path="lotes/:auctionId" element={<AuctioneerLotsPage />} />

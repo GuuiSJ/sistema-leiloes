@@ -9,6 +9,7 @@ export interface Vehicle {
   id: string; brand: string; model: string; year: number; version: string | null; imageUrls: string[]
   description?: string | null; fipeCode?: string | null; fipeReferenceMonth?: string | null
   fipeReferencePrice?: string | null; fipeReferencePriceVerified?: boolean
+  fipeBrandCode?: string | null; fipeModelCode?: string | null; fipeYearCode?: string | null
 }
 export interface Lot {
   id: string; auctionId: string; number: number; startingPrice: string; minimumIncrement: string
@@ -31,7 +32,7 @@ const isAuction = (v: unknown): v is Auction => record(v) && text(v.id) && text(
   (v.description === undefined || v.description === null || text(v.description)) &&
   ['DRAFT', 'SCHEDULED', 'OPEN', 'CLOSED', 'CANCELLED'].includes(String(v.status)) && date(v.startsAt) && date(v.endsAt)
 export const isVehicle = (v: unknown): v is Vehicle => record(v) && text(v.id) && text(v.brand) && text(v.model) && integer(v.year) &&
-  [v.description, v.fipeCode, v.fipeReferenceMonth].every(value => value === undefined || value === null || text(value)) &&
+  [v.description, v.fipeCode, v.fipeReferenceMonth, v.fipeBrandCode, v.fipeModelCode, v.fipeYearCode].every(value => value === undefined || value === null || text(value)) &&
   (v.fipeReferencePrice === undefined || v.fipeReferencePrice === null || money(v.fipeReferencePrice)) &&
   (v.fipeReferencePriceVerified === undefined || typeof v.fipeReferencePriceVerified === 'boolean') &&
   (v.version === null || text(v.version)) && Array.isArray(v.imageUrls) && v.imageUrls.every(text)

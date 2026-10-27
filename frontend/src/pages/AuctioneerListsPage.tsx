@@ -1,4 +1,4 @@
-import { Link, useParams, useSearchParams } from 'react-router'
+import { Link, useLocation, useParams, useSearchParams } from 'react-router'
 import { usePublicResource } from '../hooks/usePublicResource'
 import { getAuction, getLotsPage, listAuctions, type AuctionStatus } from '../services/auctions'
 import { listVehicles } from '../services/auctioneer'
@@ -15,10 +15,12 @@ function useListQuery() {
 }
 
 export function AuctioneerVehiclesPage() {
+  const location = useLocation()
   const { query, setQuery, page, change } = useListQuery()
   const filters = { brand: query.get('brand') ?? '', model: query.get('model') ?? '', year: query.get('year') ?? '' }
   const resource = usePublicResource(`admin:vehicles:${page}:${JSON.stringify(filters)}`, signal => listVehicles(page, filters, signal))
   return <><AdminHeading title="Veículos" description="Catálogo de veículos da plataforma. Pesquise por parte da marca ou modelo e filtre pelo ano exato." retry={resource.retry} />
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">{typeof location.state?.vehicleNotice === 'string' && <p role="status" className="text-sm">{location.state.vehicleNotice}</p>}<Link to="/area-leiloeiro/veiculos/novo" className={`${adminButton} bg-accent text-white hover:bg-blue-700`}>Cadastrar veículo</Link></div>
     <form key={query.toString()} aria-label="Filtros de veículos" className="mb-6 grid items-end gap-3 rounded-2xl border border-line bg-surface p-5 sm:grid-cols-2 xl:grid-cols-4" onSubmit={event => {
       event.preventDefault(); const form = new FormData(event.currentTarget), next = new URLSearchParams()
       for (const field of ['brand', 'model', 'year']) { const value = String(form.get(field) ?? '').trim(); if (value) next.set(field, value) }
@@ -30,8 +32,8 @@ export function AuctioneerVehiclesPage() {
       <div className="flex gap-2"><button className={adminButton}>Buscar</button><button type="button" className={adminButton} onClick={() => setQuery({})}>Limpar</button></div>
     </form>
     <AdminFeedback {...resource} empty={!resource.data?.data.length}>{resource.data && <>
-      <AdminTable headers={['Veículo', 'Ano', 'Versão', 'Referência FIPE']}>
-        {resource.data.data.map(vehicle => <tr key={vehicle.id} className="hover:bg-accent/5"><td className="px-5 py-5"><p className="font-medium">{vehicle.brand} {vehicle.model}</p></td><td className="px-5 py-5">{vehicle.year}</td><td className="px-5 py-5 text-muted">{vehicle.version ?? '—'}</td><td className="whitespace-nowrap px-5 py-5">{formatMoney(vehicle.fipeReferencePrice)}{vehicle.fipeReferencePrice != null && <p className="mt-1 text-xs text-muted">Referência não verificada</p>}</td></tr>)}
+      <AdminTable headers={['Veículo', 'Ano', 'Versão', 'Referência FIPE', 'Gerenciamento']}>
+        {resource.data.data.map(vehicle => <tr key={vehicle.id} className="hover:bg-accent/5"><td className="px-5 py-5"><p className="font-medium">{vehicle.brand} {vehicle.model}</p></td><td className="px-5 py-5">{vehicle.year}</td><td className="px-5 py-5 text-muted">{vehicle.version ?? '—'}</td><td className="whitespace-nowrap px-5 py-5">{formatMoney(vehicle.fipeReferencePrice)}{vehicle.fipeReferencePrice != null && <p className="mt-1 text-xs text-muted">Referência não verificada</p>}</td><td className="px-5 py-5"><Link to={`/area-leiloeiro/veiculos/${vehicle.id}/editar`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent dark:text-blue-300">Gerenciar</Link></td></tr>)}
       </AdminTable><AdminPagination pagination={resource.data.pagination} change={change} />
     </>}</AdminFeedback>
   </>

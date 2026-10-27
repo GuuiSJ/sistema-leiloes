@@ -121,7 +121,7 @@ it('every admin route is denied to BIDDER and never renders administrative conte
     assert.doesNotMatch(html, /Seu catálogo, em perspectiva/)
   }
 })
-it('AUCTIONEER sees navigation, the active route and loading states without write actions', () => {
+it('AUCTIONEER sees navigation, the active route and loading states without auction or lot mutations', () => {
   for (const [path, label] of [['/area-leiloeiro', 'Visão geral'], ['/area-leiloeiro/veiculos', 'Veículos'], ['/area-leiloeiro/leiloes', 'Leilões'], ['/area-leiloeiro/lotes', 'Lotes por leilão'], [`/area-leiloeiro/lotes/${auctionId}`, 'Lotes']]) {
     const html = render(h(App), path)
     assert.match(html, /Painel do leiloeiro/); assert.match(html, /Olá, <!-- -->Ana/)
