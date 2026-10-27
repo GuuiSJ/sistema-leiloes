@@ -36,7 +36,7 @@ export const isVehicle = (v: unknown): v is Vehicle => record(v) && text(v.id) &
   (v.fipeReferencePrice === undefined || v.fipeReferencePrice === null || money(v.fipeReferencePrice)) &&
   (v.fipeReferencePriceVerified === undefined || typeof v.fipeReferencePriceVerified === 'boolean') &&
   (v.version === null || text(v.version)) && Array.isArray(v.imageUrls) && v.imageUrls.every(text)
-const isLot = (v: unknown): v is Lot => record(v) && text(v.id) && text(v.auctionId) && integer(v.number) &&
+export const isLot = (v: unknown): v is Lot => record(v) && text(v.id) && text(v.auctionId) && integer(v.number) &&
   money(v.startingPrice) && money(v.minimumIncrement) && ['PENDING', 'OPEN', 'SOLD', 'UNSOLD', 'CANCELLED'].includes(String(v.status)) && date(v.endsAt) && isVehicle(v.vehicle)
 const isBid = (v: unknown): v is Bid => record(v) && text(v.id) && text(v.lotId) && money(v.amount) && integer(v.sequence) && date(v.createdAt)
 

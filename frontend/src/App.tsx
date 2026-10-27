@@ -13,6 +13,7 @@ import { AuctioneerOverviewPage } from './pages/AuctioneerOverviewPage'
 import { AuctioneerAuctionsPage, AuctioneerLotsPage, AuctioneerVehiclesPage } from './pages/AuctioneerListsPage'
 import { AuctioneerVehiclePage } from './pages/AuctioneerVehiclePage'
 import { AuctioneerAuctionPage } from './pages/AuctioneerAuctionPage'
+import { AuctioneerLotPage } from './pages/AuctioneerLotPage'
 
 export function App() {
   return (
@@ -38,6 +39,8 @@ export function App() {
             <Route path="leiloes/:auctionId/editar" element={<AuctioneerAuctionPage />} />
             <Route path="lotes" element={<AuctioneerAuctionsPage selectLot />} />
             <Route path="lotes/:auctionId" element={<AuctioneerLotsPage />} />
+            <Route path="lotes/:auctionId/novo" element={<AuctioneerLotPage create />} />
+            <Route path="lotes/:auctionId/:lotId/editar" element={<AuctioneerLotPage />} />
           </Route>
         </Route>
         <Route path="*" element={<NotFoundPage />} />

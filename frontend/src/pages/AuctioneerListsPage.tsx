@@ -1,6 +1,7 @@
 import { Link, useLocation, useParams, useSearchParams } from 'react-router'
 import { usePublicResource } from '../hooks/usePublicResource'
-import { getAuction, getLotsPage, listAuctions, type AuctionStatus } from '../services/auctions'
+import { getAuction, listAuctions, type AuctionStatus } from '../services/auctions'
+import { getManagedLotsPage, lotActions } from '../services/lot-management'
 import { listVehicles } from '../services/auctioneer'
 import { formatDate, formatMoney } from '../services/formatters'
 import { auctionStatusLabels, lotStatusLabels } from '../components/auctions/AuctionInfo'
@@ -57,15 +58,18 @@ export function AuctioneerAuctionsPage({ selectLot = false }: { selectLot?: bool
 }
 
 function LotsContent({ auctionId }: { auctionId: string }) {
+  const location = useLocation()
   const { page, change } = useListQuery()
   const resource = usePublicResource(`admin:lots:${auctionId}:${page}`, async signal => {
-    const [auction, lots] = await Promise.all([getAuction(auctionId, signal), getLotsPage(auctionId, page, signal)])
+    const [auction, lots] = await Promise.all([getAuction(auctionId, signal), getManagedLotsPage(auctionId, page, signal)])
     return { auction, lots }
   })
   return <><Link to="/area-leiloeiro/lotes" className="mb-5 inline-flex min-h-11 items-center text-sm font-medium text-accent dark:text-blue-300">← Selecionar outro leilão</Link><AdminHeading title="Lotes" description={resource.data ? `${resource.data.auction.title} · ${auctionStatusLabels[resource.data.auction.status]}` : 'Consulte os lotes vinculados ao leilão.'} retry={resource.retry} />
+    {typeof location.state?.lotNotice === 'string' && <p role="status" className="mb-5 text-sm">{location.state.lotNotice}</p>}
+    {resource.data && <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><Link to={`/area-leiloeiro/leiloes/${auctionId}/editar`} className={adminButton}>Consultar leilão</Link>{lotActions(resource.data.auction.status).create && <Link to={`/area-leiloeiro/lotes/${auctionId}/novo`} className={`${adminButton} bg-accent text-white hover:bg-blue-700`}>Cadastrar lote</Link>}<p className="w-full text-xs leading-5 text-muted">A disponibilidade das operações depende das permissões, prazos e histórico verificados pela plataforma.</p></div>}
     <AdminFeedback {...resource} empty={!resource.data?.lots.data.length}>{resource.data && <>
-      <AdminTable headers={['Lote / veículo', 'Status', 'Preço inicial', 'Incremento mínimo', 'Prazo · Brasília']}>
-        {resource.data.lots.data.map(lot => <tr key={lot.id} className="hover:bg-accent/5"><td className="min-w-48 px-5 py-5"><p className="font-medium">Lote {lot.number}</p><p className="mt-1 text-xs text-muted">{lot.vehicle.brand} {lot.vehicle.model} · {lot.vehicle.year}</p></td><td className="px-5 py-5"><StatusBadge>{lotStatusLabels[lot.status]}</StatusBadge></td><td className="whitespace-nowrap px-5 py-5">{formatMoney(lot.startingPrice)}</td><td className="whitespace-nowrap px-5 py-5">{formatMoney(lot.minimumIncrement)}</td><td className="whitespace-nowrap px-5 py-5"><time dateTime={lot.endsAt}>{formatDate(lot.endsAt)}</time></td></tr>)}
+      <AdminTable headers={['Lote / veículo', 'Status', 'Preço inicial', 'Incremento mínimo', 'Prazo · Brasília', 'Gerenciamento']}>
+        {resource.data.lots.data.map(lot => <tr key={lot.id} className="hover:bg-accent/5"><td className="min-w-48 px-5 py-5"><p className="font-medium">Lote {lot.number}</p><p className="mt-1 text-xs text-muted">{lot.vehicle.brand} {lot.vehicle.model} · {lot.vehicle.year}</p></td><td className="px-5 py-5"><StatusBadge>{lotStatusLabels[lot.status]}</StatusBadge></td><td className="whitespace-nowrap px-5 py-5">{formatMoney(lot.startingPrice)}</td><td className="whitespace-nowrap px-5 py-5">{formatMoney(lot.minimumIncrement)}</td><td className="whitespace-nowrap px-5 py-5"><time dateTime={lot.endsAt}>{formatDate(lot.endsAt)}</time></td><td className="px-5 py-5"><Link to={`/area-leiloeiro/lotes/${auctionId}/${lot.id}/editar`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent dark:text-blue-300">{lotActions(resource.data!.auction.status, lot.status).edit ? 'Gerenciar lote' : 'Consultar lote'}</Link></td></tr>)}
       </AdminTable><AdminPagination pagination={resource.data.lots.pagination} change={change} />
     </>}</AdminFeedback>
   </>
