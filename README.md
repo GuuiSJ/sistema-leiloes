@@ -107,6 +107,20 @@ Os testes comuns usam repositórios/HTTP/eventos simulados; os testes PostgreSQL
 9. Auditoria pública verifica a cadeia de eventos; o histórico público de lances é uma consulta separada, não uma assinatura individual de todos os lances. Nenhuma tela pública divulga dados pessoais do vencedor.
 10. Em produção, créditos simulados ficam desabilitados por padrão. Para avaliação, o responsável pode autorizar exclusivamente IDs de contas BIDDER fictícias com limite acumulado, conforme a [configuração de demonstração](docs/deploy.md#créditos-simulados-controlados-na-render). Novas contas não são autorizadas automaticamente.
 
+## Contas de demonstração
+
+Acesse o sistema: [https://sistema-leiloes-frontend.onrender.com/](https://sistema-leiloes-frontend.onrender.com/)
+
+As contas abaixo estão cadastradas no ambiente de produção e são exclusivas para avaliação pelos avaliadores da Verzel. Os veículos, leilões, lances e saldos são fictícios.
+
+| Perfil | E-mail | Senha |
+| --- | --- | --- |
+| Leiloeiro (AUCTIONEER) | [leiloeiro@teste.com](mailto:leiloeiro@teste.com) | Teste@123456 |
+| Participante 1 (BIDDER) | [teste@teste.com](mailto:teste@teste.com) | Teste@123456 |
+| Participante 2 (BIDDER) | [teste.leiloes@example.com](mailto:teste.leiloes@example.com) | Teste@123456 |
+
+Os participantes autorizados podem utilizar depósitos simulados em **Minha conta → Carteira virtual → Adicionar saldo** para testar os lances, respeitando o limite acumulado configurado para cada conta. Esses créditos são exclusivamente fictícios, sem pagamento, depósito real ou valor monetário real.
+
 ## Deploy gratuito e limitações
 
 O [guia de deploy](docs/deploy.md) contém os valores exatos de Render Web Service + Neon PostgreSQL + Render Static Site, variáveis, rewrite da SPA, CORS, Socket.IO, Prisma e preparação segura dos dados. Não há deploy ou URL pública validada nesta preparação.
