@@ -115,7 +115,13 @@ A Render gratuita pode suspender a API após 15 minutos sem tráfego de entrada,
 
 ## Utilização de inteligência artificial
 
-Foi utilizada assistência de IA por meio do Codex para inspeção de contratos, implementação incremental, geração e ajuste de testes, diagnóstico de integração e preparação da documentação. As sugestões foram confrontadas com o código e com verificações automatizadas; limites de validação real são registrados nos relatórios em `docs/`. Uso de IA e testes com fixtures não substituem a revisão do responsável, a avaliação das regras de negócio ou a validação do ambiente publicado. Nenhuma credencial deve ser incluída em prompts públicos, README ou dados de demonstração versionados.
+O desenvolvimento deste projeto contou com minha participação direta na programação, implementação de funcionalidades, definição das regras de negócio, estruturação do sistema, realização de testes e resolução de problemas encontrados durante o processo.
+
+Durante o desenvolvimento, utilizei o Codex como ferramenta de apoio para análise e implementação de código, sugestões de melhorias, identificação e correção de erros, criação e ajustes de testes e organização da documentação.
+
+O projeto foi desenvolvido de forma incremental, com acompanhamento das implementações, testes manuais utilizando o Postman, verificações automatizadas e validação das principais funcionalidades em ambiente local e na versão publicada.
+
+A inteligência artificial contribuiu como ferramenta de suporte ao desenvolvimento, mas não substituiu minha participação prática na construção do sistema, nas decisões técnicas e na avaliação dos resultados.
 
 ## Situação da entrega
 
