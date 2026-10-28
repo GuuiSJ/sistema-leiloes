@@ -8,6 +8,9 @@ import { BidForm } from './BidForm'
 import { lotStatusLabels } from './AuctionInfo'
 import { DetailError, DetailLoading } from './DetailFeedback'
 import { LiveConnection } from './LiveConnection'
+import { Link } from 'react-router'
+import { LotPosition } from './LotPosition'
+import { LotOutcome } from './LotOutcome'
 
 export function LotDetails({ auction, lotId }: { auction: Auction; lotId: string }) {
   const live = useLiveLot(auction.id, lotId)
@@ -19,9 +22,12 @@ export function LotDetails({ auction, lotId }: { auction: Auction; lotId: string
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
       <div className="min-w-0 space-y-6"><VehicleGallery key={vehicle.id + vehicle.imageUrls.join('|')} images={vehicle.imageUrls} label={`${vehicle.brand} ${vehicle.model}`} /><VehicleSpecs vehicle={vehicle} /></div>
       <div className="min-w-0 space-y-6">
-        <LotBidSummary auction={currentAuction} lot={lot} latest={history.data[0] ?? null} available={!live.error && !live.loading} />
+        <LotOutcome lot={lot} />
+        <LotBidSummary auction={currentAuction} lot={lot} latest={history.data[0] ?? null} available={!live.error && !live.loading} clock={live.syncReady ? live.data.clock : null} onElapsed={live.retry} />
+        <LotPosition lot={lot} latestBidId={history.data[0]?.id ?? null} revision={live.revision} synced={live.syncReady} />
         <BidForm auction={currentAuction} lot={lot} revision={live.revision} syncReady={live.syncReady} onSuccess={live.retry} />
         <BidHistory key={`${lotId}:${live.revision}`} lotId={lotId} firstPage={history} loading={live.loading} error={live.error} retry={live.retry} />
+        <Link to={`/auditoria/${lotId}`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent dark:text-blue-300">Consultar auditoria pública deste lote</Link>
       </div>
     </div>
   </section>

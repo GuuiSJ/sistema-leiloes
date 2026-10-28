@@ -8,6 +8,7 @@ import { HttpError } from "../src/errors/http-error";
 import { createAuthenticate } from "../src/middlewares/authenticate";
 import { errorHandler } from "../src/middlewares/error-handler";
 import { createLotRouter } from "../src/modules/lots/lot.routes";
+import { LotService } from "../src/modules/lots/lot.service";
 import type { LotRecord, LotRepository } from "../src/modules/lots/lot.types";
 import { signAccessToken } from "../src/modules/auth/auth.tokens";
 import type { AuthRepository, PublicUser } from "../src/modules/auth/auth.types";
@@ -218,6 +219,26 @@ describe("Lotes HTTP (JWT real, repositório em memória)", () => {
     assert.equal((await request("POST", "", { ...payload(), number: 2, vehicleId: secondVehicleId }, ownerId)).status, 409);
     assert.equal((await request("PATCH", `/${lot.id}`, { number: 2 }, ownerId)).status, 409);
     assert.equal((await request("DELETE", `/${lot.id}`, undefined, ownerId)).status, 409);
+  });
+  it("reproduz o bloqueio do PALIO com datas vencidas sem criar lote", async () => {
+    Object.assign(auctions.get(auctionId)!, {
+      title: "leilão PALIO", startsAt: new Date("2026-10-28T14:30:00.000Z"), endsAt: new Date("2026-10-28T14:35:00.000Z"),
+    });
+    const service = new LotService(repository, () => new Date("2026-10-28T15:04:43.000Z"));
+    await assert.rejects(service.create(auctionId, payload(), ownerId), (error: unknown) => {
+      assert(error instanceof HttpError);
+      assert.equal(error.status, 409);
+      assert.equal(error.message, "Somente leilões DRAFT ainda não iniciados permitem gerenciar lotes.");
+      return true;
+    });
+    assert.equal(rows.size, 0);
+  });
+  it("retorna a causa temporal no corpo HTTP 409 sem confundir com duplicidade", async () => {
+    auctions.get(auctionId)!.startsAt = new Date(Date.now() - 1000);
+    const response = await request("POST", "", payload(), ownerId);
+    assert.equal(response.status, 409);
+    assert.deepEqual(await response.json(), { message: "Somente leilões DRAFT ainda não iniciados permitem gerenciar lotes." });
+    assert.equal(rows.size, 0);
   });
   it("preserva lote com histórico ou vencedor mesmo PENDING", async () => {
     const lot = await create(); history.add(lot.id);

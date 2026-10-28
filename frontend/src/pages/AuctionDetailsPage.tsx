@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 import { usePublicResource } from '../hooks/usePublicResource'
@@ -14,6 +14,11 @@ function DetailContent({ id }: { id: string }) {
     const [auction, lots] = await Promise.all([getAuction(id, signal), getLotsPage(id, page, signal)])
     return { auction, lots }
   })
+  useEffect(() => {
+    if (resource.data?.auction.status !== 'SCHEDULED') return
+    const timer = setInterval(() => { if (document.visibilityState !== 'hidden') resource.retry() }, 5000)
+    return () => clearInterval(timer)
+  }, [resource.data?.auction.status])
   const selected = resource.data?.lots.data.find(lot => lot.id === lotId) ?? resource.data?.lots.data[0]
   return <div className="page-container py-8 sm:py-12">
     <div className="mb-6 flex flex-wrap items-center justify-between gap-4">

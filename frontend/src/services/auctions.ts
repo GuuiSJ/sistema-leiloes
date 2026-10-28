@@ -14,6 +14,7 @@ export interface Vehicle {
 export interface Lot {
   id: string; auctionId: string; number: number; startingPrice: string; minimumIncrement: string
   status: LotStatus; endsAt: string; vehicle: Vehicle
+  result?: { status: 'SOLD'; winningBidId: string; finalAmount: string } | { status: 'UNSOLD'; winningBidId: null; finalAmount: null } | null
 }
 export interface Bid { id: string; lotId: string; amount: string; sequence: number; createdAt: string }
 export interface Pagination { page: number; limit: number; total: number; totalPages: number }
@@ -37,7 +38,9 @@ export const isVehicle = (v: unknown): v is Vehicle => record(v) && text(v.id) &
   (v.fipeReferencePriceVerified === undefined || typeof v.fipeReferencePriceVerified === 'boolean') &&
   (v.version === null || text(v.version)) && Array.isArray(v.imageUrls) && v.imageUrls.every(text)
 export const isLot = (v: unknown): v is Lot => record(v) && text(v.id) && text(v.auctionId) && integer(v.number) &&
-  money(v.startingPrice) && money(v.minimumIncrement) && ['PENDING', 'OPEN', 'SOLD', 'UNSOLD', 'CANCELLED'].includes(String(v.status)) && date(v.endsAt) && isVehicle(v.vehicle)
+  money(v.startingPrice) && money(v.minimumIncrement) && ['PENDING', 'OPEN', 'SOLD', 'UNSOLD', 'CANCELLED'].includes(String(v.status)) && date(v.endsAt) && isVehicle(v.vehicle) &&
+  (v.result === undefined || v.result === null || (record(v.result) && v.result.status === v.status &&
+    ((v.status === 'SOLD' && text(v.result.winningBidId) && money(v.result.finalAmount)) || (v.status === 'UNSOLD' && v.result.winningBidId === null && v.result.finalAmount === null))))
 const isBid = (v: unknown): v is Bid => record(v) && text(v.id) && text(v.lotId) && money(v.amount) && integer(v.sequence) && date(v.createdAt)
 
 export async function getPage<T>(path: string, guard: (value: unknown) => value is T, signal: AbortSignal): Promise<Page<T>> {

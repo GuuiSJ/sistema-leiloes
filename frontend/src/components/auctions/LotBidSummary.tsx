@@ -2,8 +2,9 @@ import type { Auction, Bid, Lot } from '../../services/auctions'
 import { formatMoney } from '../../services/formatters'
 import { referenceNextBid } from '../../services/auction-rules'
 import { LotCountdown } from './LotCountdown'
+import type { RoomClock } from '../../services/live-room'
 
-export function LotBidSummary({ auction, lot, latest, available }: { auction: Auction; lot: Lot; latest: Bid | null; available: boolean }) {
+export function LotBidSummary({ auction, lot, latest, available, clock, onElapsed }: { auction: Auction; lot: Lot; latest: Bid | null; available: boolean; clock?: RoomClock | null; onElapsed?: () => void }) {
   const open = auction.status === 'OPEN' && lot.status === 'OPEN'
   const minimum = open ? referenceNextBid(lot, latest, available) : null
   return <section aria-label="Valores e prazo do lote" className="space-y-5 rounded-2xl border border-line bg-surface p-6">
@@ -17,7 +18,7 @@ export function LotBidSummary({ auction, lot, latest, available }: { auction: Au
       {minimum && <div><dt className="text-muted">Mínimo pela regra de incremento</dt><dd className="mt-1 text-lg font-semibold">{formatMoney(minimum)}</dd></div>}
     </dl>
     {minimum && <p className="text-xs leading-5 text-muted">Referência calculada com os dados consultados, não uma garantia de aceitação. A disponibilidade operacional deste leilão não é informada pela consulta pública.</p>}
-    <LotCountdown auction={auction} lot={lot} />
+    <LotCountdown auction={auction} lot={lot} clock={clock} onElapsed={onElapsed} />
     <p className="text-sm leading-5 text-muted">Os dados são atualizados durante o leilão. Entre na sua conta para verificar se você pode participar.</p>
   </section>
 }

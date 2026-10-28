@@ -9,5 +9,5 @@ export interface AuctionLifecycleRepository {
 }
 // Audit preparation must lock/validate the global chain before the transition clock is read.
 export type PrepareOpeningAudit = (tx: Prisma.TransactionClient) => Promise<
-  (auction: Auction, lots: LifecycleLot[], authorId: string, occurredAt: Date) => Promise<void>
+  (auction: Auction, lots: LifecycleLot[], authorId: string | null, occurredAt: Date) => Promise<void>
 >;

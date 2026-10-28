@@ -8,7 +8,7 @@ export class SettlementWorker {
   private running?: Promise<void>;
   private stopped = true;
   private cursor = "";
-  constructor(private readonly repository: SettlementRepository, private readonly service = new SettlementService(repository), private readonly intervalMs = 1000, private readonly batchSize = 25, private readonly ready: () => boolean = () => temporalRuntime.workerReady) {}
+  constructor(private readonly repository: SettlementRepository, private readonly service = new SettlementService(repository), private readonly intervalMs = 1000, private readonly batchSize = 25, private readonly ready: () => boolean = () => temporalRuntime.workerReady, private readonly openScheduled?: (limit: number, active: () => boolean) => Promise<void>) {}
   start(): void {
     if (!this.stopped || !this.ready()) return;
     this.stopped = false;
@@ -22,6 +22,9 @@ export class SettlementWorker {
   }
   private async cycle(): Promise<void> {
     try {
+      try { await this.openScheduled?.(this.batchSize, () => !this.stopped && this.ready()); }
+      catch { console.error("Falha ao consultar leilões para abertura automática."); }
+      if (this.stopped || !this.ready()) return;
       let candidates = await this.repository.candidates(this.batchSize, this.cursor);
       if (!candidates.length && this.cursor) { this.cursor = ""; candidates = await this.repository.candidates(this.batchSize, this.cursor); }
       // Advance even on failures, so inconsistent entries cannot starve later batches.

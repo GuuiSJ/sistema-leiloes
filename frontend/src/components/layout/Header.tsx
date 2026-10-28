@@ -31,6 +31,7 @@ export function Header() {
     return [
       { to: '/', label: 'Início' },
       { to: '/leiloes', label: 'Leilões' },
+      { to: '/auditoria', label: 'Auditoria pública' },
       { to: '/como-funciona', label: 'Como funciona' },
     ].map(({ to, label }) => (
       <NavLink key={to} to={to} end={to === '/'} onClick={() => setMenuOpen(false)}

@@ -7,6 +7,21 @@ export type LotFields = Partial<Record<keyof LotDraft, string>>
 export class LotManagementError extends AuthError {
   constructor(message: string, status?: number, readonly uncertain = false) { super(message, status) }
 }
+// Only these locally known API messages may select a more specific explanation.
+// Unknown server text never reaches the interface.
+const lotConflictMessages = new Map([
+  ['Somente leilões DRAFT ainda não iniciados permitem gerenciar lotes.', 'O leilão precisa estar em rascunho e com início e término futuros para gerenciar lotes. Se o horário de início já passou, o backend também impede reagendar esse leilão. Cadastre outro leilão operacional com início futuro.'],
+  ['Leilão LEGACY ou sem geração temporal válida: operação bloqueada. Histórico disponível para consulta.', 'Este leilão está disponível apenas para consulta do histórico e não permite cadastrar ou alterar lotes. É necessário um novo leilão em um ambiente com operação temporal habilitada; alterar as datas não remove esse bloqueio.'],
+  ['Número ou veículo já associado a este leilão.', 'O número do lote ou o veículo já está vinculado a este leilão. Confira os lotes existentes e escolha outro número ou veículo.'],
+  ['Lote alterado simultaneamente. Tente novamente.', 'O lote foi alterado simultaneamente. Reconsulte os dados antes de tentar novamente.'],
+  ['Lote possui estado ou histórico incompatível com alteração ou exclusão.', 'O estado ou o histórico deste lote impede sua alteração ou exclusão.'],
+])
+async function lotConflictMessage(response: Response): Promise<string> {
+  const fallback = 'A operação foi bloqueada. Verifique se o número ou veículo já está vinculado ao leilão. Estado, prazo, histórico ou alterações simultâneas também podem impedir a operação.'
+  const body: unknown = await response.json().catch(() => null)
+  if (!body || typeof body !== 'object' || !('message' in body) || typeof body.message !== 'string') return fallback
+  return lotConflictMessages.get(body.message) ?? fallback
+}
 export const validLotId = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
 // Public status only narrows actions; deadlines, ownership and history are checked by the API.
 export const lotActions = (auction: AuctionStatus, lot?: LotStatus) => ({ create: auction === 'DRAFT', edit: auction === 'DRAFT' && lot === 'PENDING', delete: auction === 'DRAFT' && lot === 'PENDING' })
@@ -55,7 +70,7 @@ async function mutate(operation: 'create' | 'update' | 'delete', auctionId: stri
         : response.status === 401 ? 'Sua sessão expirou. Entre novamente.'
           : response.status === 403 ? 'Operação não permitida. É necessário ser responsável pelo leilão e proprietário dos veículos envolvidos.'
             : response.status === 404 ? 'Leilão, lote ou veículo não encontrado. Reconsulte os dados.'
-              : response.status === 409 ? 'A operação foi bloqueada. Verifique se o número ou veículo já está vinculado ao leilão. Estado, prazo, histórico ou alterações simultâneas também podem impedir a operação.'
+              : response.status === 409 ? await lotConflictMessage(response)
                 : response.status === 429 ? 'Muitas tentativas. Aguarde antes de continuar.' : 'Não foi possível confirmar o resultado. Consulte a listagem antes de tentar novamente.'
       throw new LotManagementError(message, response.status, response.status >= 500)
     }

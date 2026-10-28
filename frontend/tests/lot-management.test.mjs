@@ -128,6 +128,28 @@ it('maps validation, permission, missing record, duplicate/conflict and rate lim
     await assert.rejects(api.updateLot(auctionId, lotId, draft(), 'fixture-token', signal()), error => { assert.equal(error.status, status); assert.match(error.message, message); assert.doesNotMatch(error.message, /SQL/); assert.equal(error.uncertain, false); return true })
   }
 })
+it('explains known deadline, legacy, duplicate and history conflicts without exposing arbitrary backend text', async () => {
+  for (const [message, expected] of [
+    ['Somente leilões DRAFT ainda não iniciados permitem gerenciar lotes.', /horário de início já passou.*impede reagendar/],
+    ['Leilão LEGACY ou sem geração temporal válida: operação bloqueada. Histórico disponível para consulta.', /apenas para consulta do histórico.*alterar as datas não remove/],
+    ['Número ou veículo já associado a este leilão.', /escolha outro número ou veículo/],
+    ['Lote alterado simultaneamente. Tente novamente.', /alterado simultaneamente/],
+    ['Lote possui estado ou histórico incompatível com alteração ou exclusão.', /histórico deste lote impede/],
+  ]) {
+    globalThis.fetch = async () => Response.json({ message }, { status: 409 })
+    await assert.rejects(api.createLot(auctionId, draft(), 'fixture-token', signal()), error => {
+      assert.equal(error.status, 409); assert.equal(error.uncertain, false); assert.match(error.message, expected); return true
+    })
+  }
+  for (const body of [{ message: 'Informação privada do servidor' }, { message: 123 }, null, ['unexpected']]) {
+    globalThis.fetch = async () => Response.json(body, { status: 409 })
+    await assert.rejects(api.createLot(auctionId, draft(), 'fixture-token', signal()), error => {
+      assert.match(error.message, /A operação foi bloqueada/); assert.doesNotMatch(error.message, /Informação privada/); return true
+    })
+  }
+  globalThis.fetch = async () => new Response('<html>private</html>', { status: 409 })
+  await assert.rejects(api.createLot(auctionId, draft(), 'fixture-token', signal()), error => error.status === 409 && !error.uncertain)
+})
 it('network failures, unavailable service and invalid success bodies are uncertain and never resent', async () => {
   for (const reply of [() => { throw Error('offline') }, () => Response.json({}, { status: 503 }), () => Response.json({}), () => Response.json({ lot: { ...lot, id: otherId } }), () => Response.json({ lot: { ...lot, auctionId: otherId } })]) {
     let calls = 0; globalThis.fetch = async () => { calls++; return reply() }
@@ -206,6 +228,14 @@ it('read-only lot summary shows vehicle, status, exact price and deadline in Bra
   assert.match(html, /Marca/); assert.match(html, /Modelo/); assert.match(html, /Aberto/)
   assert.match(html, /100\.000,01/); assert.match(html, /01\/12\/2030, 15:00/)
   assert.doesNotMatch(html, /aria-label="Editar lote"/)
+})
+it('shows auction start and explains why DRAFT does not allow registering lots after it', () => {
+  globalThis.fetch = () => { throw Error('Rendering must not write') }
+  const html = render(h(Editor, { auction: { ...auction, title: 'leilão PALIO', startsAt: '2026-10-28T14:30:00.000Z', endsAt: '2026-10-28T14:35:00.000Z' } }))
+  assert.match(html, /Início do leilão/)
+  assert.match(html, /28\/10\/2026, 11:30/)
+  assert.match(html, /28\/10\/2026, 11:35/)
+  assert.match(html, /antes do início do leilão, mesmo em rascunho/)
 })
 it('exclusion requires an explicit confirmation identifying the original lot and vehicle', () => {
   let calls = 0

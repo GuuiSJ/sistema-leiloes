@@ -3,8 +3,9 @@ import { io } from 'socket.io-client'
 import { API_BASE_URL, ApiError } from '../services/api'
 import { getAuction, getBidHistory, getLot, type Auction, type Bid, type Lot, type Page } from '../services/auctions'
 import { watchLot, type ConnectionState } from '../services/lot-realtime'
+import { getRoomClock, type RoomClock } from '../services/live-room'
 
-interface Snapshot { auction: Auction; lot: Lot; history: Page<Bid> }
+interface Snapshot { auction: Auction; lot: Lot; history: Page<Bid>; clock: RoomClock | null }
 export function useLiveLot(auctionId: string, lotId: string) {
   const [data, setData] = useState<Snapshot | null>(null), [error, setError] = useState<ApiError | null>(null)
   const [loading, setLoading] = useState(true), [revision, setRevision] = useState(0)
@@ -19,8 +20,9 @@ export function useLiveLot(auctionId: string, lotId: string) {
       if (disposed || running) { dirty = true; return }
       running = true; dirty = false; setLoading(true)
       try {
-        const [auction, lot, history] = await Promise.all([getAuction(auctionId, abort.signal), getLot(auctionId, lotId, abort.signal), getBidHistory(lotId, 1, abort.signal)])
-        if (!disposed) { setData({ auction, lot, history }); setError(null) }
+        const [auction, lot, history, sample] = await Promise.all([getAuction(auctionId, abort.signal), getLot(auctionId, lotId, abort.signal), getBidHistory(lotId, 1, abort.signal), getRoomClock(lotId, abort.signal).catch(() => null)])
+        const clock = sample && sample.auctionId === auction.id && sample.lotStatus === lot.status && sample.auctionStatus === auction.status && sample.endsAt === lot.endsAt ? sample : null
+        if (!disposed) { setData({ auction, lot, history, clock }); setError(null) }
       } catch (error) {
         if (!disposed) setError(error instanceof ApiError ? error : new ApiError('Não foi possível atualizar este lote.'))
       } finally {

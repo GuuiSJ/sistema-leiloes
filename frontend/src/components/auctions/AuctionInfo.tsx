@@ -1,7 +1,7 @@
 import type { Auction, AuctionStatus, LotStatus } from '../../services/auctions'
 import { formatDate } from '../../services/formatters'
 
-export const auctionStatusLabels: Record<AuctionStatus, string> = { DRAFT: 'Rascunho', SCHEDULED: 'Agendado', OPEN: 'Aberto', CLOSED: 'Encerrado', CANCELLED: 'Cancelado' }
+export const auctionStatusLabels: Record<AuctionStatus, string> = { DRAFT: 'Rascunho', SCHEDULED: 'Agendado', OPEN: 'Ao vivo', CLOSED: 'Encerrado', CANCELLED: 'Cancelado' }
 export const lotStatusLabels: Record<LotStatus, string> = { PENDING: 'Pendente', OPEN: 'Aberto', SOLD: 'Vendido', UNSOLD: 'Não vendido', CANCELLED: 'Cancelado' }
 
 export function AuctionInfo({ auction }: { auction: Auction }) {

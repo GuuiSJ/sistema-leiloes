@@ -7,6 +7,7 @@ const navigation = [
   { to: '/area-leiloeiro/veiculos', label: 'Veículos', icon: CarFront },
   { to: '/area-leiloeiro/leiloes', label: 'Leilões', icon: Gavel },
   { to: '/area-leiloeiro/lotes', label: 'Lotes', icon: Layers },
+  { to: '/area-leiloeiro/resultados', label: 'Resultados', icon: Gavel },
 ]
 export function AdminLayout() {
   const auth = useAuth()
@@ -18,7 +19,7 @@ export function AdminLayout() {
     <div className="grid items-start gap-6 lg:grid-cols-[210px_minmax(0,1fr)]">
       <aside className="rounded-2xl border border-line bg-surface p-3 lg:sticky lg:top-6">
         <nav aria-label="Painel do leiloeiro" className="grid grid-cols-2 gap-1 lg:grid-cols-1">{navigation.map(({ to, label, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${isActive ? 'bg-accent/10 text-accent dark:text-blue-300' : 'text-muted hover:bg-accent/5 hover:text-ink'}`}><Icon size={18} aria-hidden="true" />{label}</NavLink>)}</nav>
-        <p className="mt-4 hidden border-t border-line px-3 pt-4 text-xs leading-5 text-muted lg:block">Consulta do catálogo da plataforma. As listagens não se restringem aos seus registros.</p>
+        <p className="mt-4 hidden border-t border-line px-3 pt-4 text-xs leading-5 text-muted lg:block">Consulte o catálogo da plataforma. A seção Resultados é restrita aos seus leilões.</p>
       </aside>
       <div className="min-w-0"><Outlet /></div>
     </div>

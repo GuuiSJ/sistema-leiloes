@@ -33,7 +33,17 @@ export function auctionInput(draft: AuctionDraft) {
   if (Object.keys(validateAuction(draft)).length) throw new AuctionManagementError('Confira os campos destacados.', 400)
   return { title: draft.title.trim(), description: draft.description.trim() || null, startsAt: draft.startsAt, endsAt: draft.endsAt }
 }
-async function mutate(operation: 'create' | 'update' | 'cancel', id: string | undefined, body: object | undefined, token: string, signal: AbortSignal): Promise<Auction> {
+const publicationErrors = new Map([
+  ['Agendamento exige início e término futuros e período válido.', 'Não foi possível publicar: o início e o término precisam estar no futuro, com término posterior ao início.'],
+  ['Leilão precisa de ao menos um lote válido não cancelado.', 'Cadastre ao menos um lote válido e não cancelado antes de publicar o leilão.'],
+  ['Leilão possui lote incompatível, histórico financeiro ou veículo de outro proprietário.', 'A publicação foi bloqueada: revise os lotes pendentes, seus valores, os veículos e a existência de histórico financeiro.'],
+  ['Somente o responsável pode agendar ou abrir este leilão.', 'Somente o leiloeiro responsável pode publicar este leilão.'],
+  ['Leilão LEGACY ou sem geração temporal válida: operação bloqueada. Histórico disponível para consulta.', 'Este leilão é somente para consulta histórica. Crie um novo leilão UTC_V2 para publicar.'],
+  ['Estado do leilão incompatível com esta transição.', 'O status do leilão mudou ou não permite publicação. Atualize a listagem.'],
+  ['Lotes alterados simultaneamente. Reenvie a transição.', 'Os lotes foram alterados simultaneamente. Atualize a listagem e revise antes de publicar.'],
+  ['Transição concorrente. Reenvie a requisição.', 'O leilão foi alterado simultaneamente. Atualize a listagem antes de tentar novamente.'],
+])
+async function mutate(operation: 'create' | 'update' | 'cancel' | 'schedule', id: string | undefined, body: object | undefined, token: string, signal: AbortSignal): Promise<Auction> {
   if (!token || /\s/.test(token)) throw new AuctionManagementError('Entre novamente para gerenciar leilões.', 401)
   if (id !== undefined && !validAuctionId(id)) throw new AuctionManagementError('Identificador de leilão inválido.', 400)
   if (signal.aborted) throw new DOMException('Operação cancelada', 'AbortError')
@@ -41,12 +51,17 @@ async function mutate(operation: 'create' | 'update' | 'cancel', id: string | un
   signal.addEventListener('abort', abort, { once: true })
   const timer = setTimeout(abort, 12000)
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auctions${id ? `/${id}` : ''}${operation === 'cancel' ? '/cancel' : ''}`, {
+    const response = await fetch(`${API_BASE_URL}/api/auctions${id ? `/${id}` : ''}${operation === 'cancel' ? '/cancel' : operation === 'schedule' ? '/schedule' : ''}`, {
       method: operation === 'create' ? 'POST' : 'PATCH', credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal,
       headers: { Accept: 'application/json', Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}),
     })
     if (!response.ok) {
+      if (operation === 'schedule' && [400, 403, 409].includes(response.status)) {
+        const error: unknown = await response.json().catch(() => null)
+        const message = error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' ? publicationErrors.get(error.message) : undefined
+        throw new AuctionManagementError(message ?? (response.status === 403 ? 'Você não tem permissão para publicar este leilão.' : 'Não foi possível publicar. Atualize os dados e confira status, datas, lotes e propriedade.'), response.status)
+      }
       const message = response.status === 400 ? 'Confira os campos e as datas. Na edição, o início precisa estar no futuro e o término deve ser posterior ao início.'
         : response.status === 401 ? 'Sua sessão expirou. Entre novamente.'
           : response.status === 403 ? 'Operação não permitida. É necessário ser leiloeiro e responsável pelo leilão para alterá-lo ou cancelá-lo.'
@@ -56,7 +71,7 @@ async function mutate(operation: 'create' | 'update' | 'cancel', id: string | un
       throw new AuctionManagementError(message, response.status, response.status >= 500)
     }
     const result: unknown = await response.json()
-    if (!result || typeof result !== 'object' || !('auction' in result) || !isAuction(result.auction) || !validAuctionId(result.auction.id) || (id && result.auction.id !== id) || (operation === 'cancel' && result.auction.status !== 'CANCELLED')) throw new AuctionManagementError('A resposta não pôde ser validada. Consulte a listagem para verificar o resultado.', undefined, true)
+    if (!result || typeof result !== 'object' || !('auction' in result) || !isAuction(result.auction) || !validAuctionId(result.auction.id) || (id && result.auction.id !== id) || (operation === 'cancel' && result.auction.status !== 'CANCELLED') || (operation === 'schedule' && (result.auction.status !== 'SCHEDULED' || !('openedLots' in result) || result.openedLots !== 0 || !('unchanged' in result) || typeof result.unchanged !== 'boolean'))) throw new AuctionManagementError('A resposta não pôde ser validada. Consulte a listagem para verificar o resultado.', undefined, true)
     return result.auction
   } catch (error) {
     if (error instanceof AuctionManagementError) throw error
@@ -66,3 +81,4 @@ async function mutate(operation: 'create' | 'update' | 'cancel', id: string | un
 export const createAuction = (draft: AuctionDraft, token: string, signal: AbortSignal) => mutate('create', undefined, auctionInput(draft), token, signal)
 export const updateAuction = (id: string, draft: AuctionDraft, token: string, signal: AbortSignal) => mutate('update', id, auctionInput(draft), token, signal)
 export const cancelAuction = (id: string, token: string, signal: AbortSignal) => mutate('cancel', id, undefined, token, signal)
+export const scheduleAuction = (id: string, token: string, signal: AbortSignal) => mutate('schedule', id, undefined, token, signal)
