@@ -5,7 +5,7 @@ import { getPrisma } from "../../lib/prisma";
 import type { AuctionLifecycleRepository, PrepareOpeningAudit } from "./auction-lifecycle.types";
 import { prepareOpeningAudit } from "../audit/opening-audit";
 
-export function createAuctionLifecycleRepository(client: () => PrismaClient = getPrisma, prepareAudit: PrepareOpeningAudit = prepareOpeningAudit): AuctionLifecycleRepository {
+export function createAuctionLifecycleRepository(client: () => PrismaClient = getPrisma, prepareAudit: PrepareOpeningAudit = prepareOpeningAudit, options: { automated?: boolean } = {}): AuctionLifecycleRepository {
   return {
     async transition(id, operation, authorId, decide) {
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -53,7 +53,7 @@ export function createAuctionLifecycleRepository(client: () => PrismaClient = ge
             if (decision.openLotIds.length) {
               const result = await tx.lot.updateMany({ where: { id: { in: decision.openLotIds }, auctionId: id, status: "PENDING" }, data: { status: "OPEN", version: { increment: 1 } } });
               if (result.count !== decision.openLotIds.length) throw new HttpError(409, "Lotes alterados simultaneamente. Nenhuma abertura foi aplicada.");
-              await appendAudit!(updated, stateLots.filter(lot => decision.openLotIds.includes(lot.id)), authorId, now);
+              await appendAudit!(updated, stateLots.filter(lot => decision.openLotIds.includes(lot.id)), options.automated ? null : authorId, now);
             }
             return { auction: updated, openedLots: decision.openLotIds.length, unchanged: false };
           }, { isolationLevel: "Serializable" });

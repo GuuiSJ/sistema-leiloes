@@ -17,7 +17,9 @@ describe("Lances HTTP (JWT real, repositório em memória)", () => {
   const users = new Map<string, PublicUser>(), rows: Bid[] = [], keys = new Map<string, Bid>();
   const config = { secret: randomBytes(48).toString("hex"), expiresInSeconds: 3600 };
   let state: BidState, server: Server, base: string, fail = false;
+  let available = "1000", held = "0", walletExists = true;
   const repository: BidRepository = {
+    async eligibility() { return { state: { ...state, latest: rows.at(-1) ?? null }, available: new Prisma.Decimal(available), held: new Prisma.Decimal(held), walletExists }; },
     async list(id, query) {
       if (id !== lotId) throw new HttpError(404, "Lote não encontrado.");
       const bids = [...rows].sort((a,b) => b.sequence - a.sequence);
@@ -48,6 +50,7 @@ describe("Lances HTTP (JWT real, repositório em memória)", () => {
   });
   beforeEach(() => {
     users.clear(); rows.length = 0; keys.clear(); fail = false;
+    available = "1000"; held = "0"; walletExists = true;
     for (const id of [userId, otherId, ownerId]) users.set(id, { id, name: "Privado", email: "private@example.com", role: id === ownerId ? "AUCTIONEER" : "BIDDER", createdAt: new Date() });
     const auction: Auction = { id: randomUUID(), organizerId: ownerId, ...{ temporalGeneration: "UTC_V2" }, title: "Fixture", description: null, startsAt: new Date(Date.now() - 86400000), endsAt: new Date(Date.now() + 86400000), status: "OPEN", createdAt: new Date(), updatedAt: new Date() };
     const lot: Lot = { id: lotId, auctionId: auction.id, vehicleId: randomUUID(), number: 1, startingPrice: new Prisma.Decimal(100), minimumIncrement: new Prisma.Decimal(10), status: "OPEN", winnerId: null, endsAt: null, version: 0, createdAt: new Date(), updatedAt: new Date() };
@@ -65,6 +68,40 @@ describe("Lances HTTP (JWT real, repositório em memória)", () => {
     const res = await request("POST", { amount: "100.00" }); assert.equal(res.status, 201);
     const body = await res.json(); assert.equal(body.bid.amount, "100.00"); assert.equal(body.bid.sequence, 1); assert.equal(body.replayed, false);
     assert.deepEqual(Object.keys(body.bid).sort(), ["amount", "createdAt", "id", "lotId", "sequence"]);
+  });
+  it("consulta elegibilidade sem criar lances, exige BIDDER e não expõe dados privados", async () => {
+    const url = `${base}/${lotId}/bids/eligibility`;
+    assert.equal((await fetch(url)).status, 401);
+    assert.equal((await fetch(url, { headers: { Authorization: `Bearer ${signAccessToken(ownerId, config)}` } })).status, 403);
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${signAccessToken(userId, config)}` } });
+    const body = await res.json(); assert.equal(body.eligible, true); assert.equal(body.minimumAmount, "100.00");
+    assert.deepEqual(Object.keys(body).sort(), ["checkedAt", "currentAmount", "eligible", "endsAt", "minimumAmount"]);
+    assert.equal(rows.length, 0); assert.equal(res.headers.get("cache-control"), "no-store");
+  });
+  it("elegibilidade anterior não autoriza POST após encerramento ou mudança de mínimo", async () => {
+    const headers = { Authorization: `Bearer ${signAccessToken(userId, config)}` };
+    assert.equal((await (await fetch(`${base}/${lotId}/bids/eligibility`, { headers })).json()).eligible, true);
+    state.auction.endsAt = state.now;
+    assert.equal((await request("POST", { amount: "100" })).status, 409); assert.equal(rows.length, 0);
+  });
+  it("consulta bloqueia LEGACY, início futuro, proprietário e saldo insuficiente sem gravações", async () => {
+    const headers = { Authorization: `Bearer ${signAccessToken(userId, config)}` };
+    const check = async () => (await (await fetch(`${base}/${lotId}/bids/eligibility`, { headers })).json()).eligible;
+    state.auction.temporalGeneration = "LEGACY"; assert.equal(await check(), false);
+    state.auction.temporalGeneration = "UTC_V2"; state.auction.startsAt = new Date(Date.now() + 86400000); assert.equal(await check(), false);
+    state.auction.startsAt = new Date(0); state.vehicleOwnerId = userId; assert.equal(await check(), false);
+    state.vehicleOwnerId = ownerId; state.lot.startingPrice = new Prisma.Decimal(1001); assert.equal(await check(), false);
+    assert.equal(rows.length, 0);
+  });
+  it("elegibilidade usa centavos exatos e desconta a própria reserva sem exigir novo saldo integral", async () => {
+    await request("POST", { amount: "100.00" });
+    state.lot.minimumIncrement = new Prisma.Decimal("0.01"); held = "100.00"; available = "0.01";
+    const headers = { Authorization: `Bearer ${signAccessToken(userId, config)}` };
+    const check = async () => (await (await fetch(`${base}/${lotId}/bids/eligibility`, { headers })).json());
+    const body = await check(); assert.equal(body.eligible, true); assert.equal(body.minimumAmount, "100.01");
+    available = "0.00"; assert.equal((await check()).eligible, false);
+    available = "1000"; walletExists = false; assert.equal((await check()).eligible, false);
+    assert.equal(rows.length, 1);
   });
   it("exige autenticação e BIDDER para postar", async () => {
     assert.equal((await request("POST", { amount: "100" }, "a", "")).status, 401);

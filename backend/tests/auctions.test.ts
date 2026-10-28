@@ -234,6 +234,18 @@ describe("Gerenciamento de leilões HTTP (persistência em memória)", () => {
     auctions.get(auctionId)!.startsAt = new Date(Date.now() - 1000);
     assert.equal((await request("PATCH", `/${auctionId}`, { title: "Novo" }, ownerId)).status, 409);
   });
+  it("não permite reagendar um rascunho cujo início original já passou", async () => {
+    const original = auctions.get(auctionId)!;
+    original.startsAt = new Date(Date.now() - 1000);
+    const previousStart = original.startsAt.toISOString(), previousEnd = original.endsAt.toISOString();
+    const response = await request("PATCH", `/${auctionId}`, {
+      startsAt: new Date(Date.now() + 86400000).toISOString(), endsAt: new Date(Date.now() + 172800000).toISOString(),
+    }, ownerId);
+    assert.equal(response.status, 409);
+    assert.deepEqual(await response.json(), { message: "Somente leilões em DRAFT e ainda não iniciados podem ser editados." });
+    assert.equal(original.startsAt.toISOString(), previousStart);
+    assert.equal(original.endsAt.toISOString(), previousEnd);
+  });
 
   it("usa o estado recebido dentro da mutação, sem leitura obsoleta", async () => {
     changeBeforeMutation = "OPEN";

@@ -7,3 +7,7 @@ export function createReceiptRepository(client: () => PrismaClient = getPrisma) 
   } };
 }
 export type ReceiptRepository = ReturnType<typeof createReceiptRepository>;
+
+export function createPublicReceiptRepository(client: () => PrismaClient = getPrisma) {
+  return { async find(publicId: string) { return client().auctionReceipt.findUnique({ where: { publicId } }); } };
+}

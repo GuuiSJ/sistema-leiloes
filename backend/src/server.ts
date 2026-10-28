@@ -8,7 +8,8 @@ import { connectDatabase, disconnectDatabase } from "./lib/prisma";
 import { getAuthConfig } from "./config/auth";
 import { SettlementWorker } from "./workers/settlement-worker";
 import { createSettlementRepository } from "./modules/settlement/settlement.repository";
-import { TemporalStartupError } from "./modules/temporal/temporal-runtime";
+import { createScheduledOpeningProcessor } from "./workers/scheduled-opening";
+import { TemporalStartupError, temporalRuntime } from "./modules/temporal/temporal-runtime";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -76,7 +77,11 @@ async function start(): Promise<void> {
   });
   console.log(`Servidor rodando na porta ${PORT}`);
   // connectDatabase verifies temporal compatibility before HTTP listens or the worker starts.
-  if (!shuttingDown) { settlementWorker = new SettlementWorker(createSettlementRepository()); settlementWorker.start(); }
+  if (!shuttingDown) {
+    settlementWorker = new SettlementWorker(createSettlementRepository(), undefined, 1000, 25, undefined, createScheduledOpeningProcessor());
+    settlementWorker.start();
+    console.log(temporalRuntime.workerReady ? "Processamento automático UTC_V2 iniciado: abertura e encerramento a cada segundo." : "Processamento automático desativado: UTC_V2 não está ativo.");
+  }
 }
 
 void start().catch(async (error: unknown) => {

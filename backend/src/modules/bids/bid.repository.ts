@@ -10,6 +10,23 @@ function inconsistent(): never { throw new HttpError(409, "Estado financeiro inc
 
 export function createBidRepository(client: () => PrismaClient = getPrisma): BidRepository {
   return {
+    async eligibility(lotId, userId) {
+      return client().$transaction(async tx => {
+        await tx.$executeRaw`SET TRANSACTION READ ONLY`;
+        const lot = await tx.lot.findUnique({ where: { id: lotId } });
+        if (!lot) throw new HttpError(404, "Lote não encontrado.");
+        const auction = await tx.auction.findUniqueOrThrow({ where: { id: lot.auctionId } });
+        const vehicle = await tx.vehicle.findUniqueOrThrow({ where: { id: lot.vehicleId }, select: { ownerId: true } });
+        const latest = await tx.bid.findFirst({ where: { lotId }, orderBy: { sequence: "desc" } });
+        const receipt = await tx.auctionReceipt.findUnique({ where: { lotId }, select: { id: true } });
+        const wallet = await tx.wallet.findUnique({ where: { userId } });
+        const reserved = wallet ? await tx.bidReservation.aggregate({ where: { walletId: wallet.id, status: "ACTIVE" }, _sum: { amount: true } }) : null;
+        const position = wallet ? await tx.bidReservation.findFirst({ where: { walletId: wallet.id, lotId, status: "ACTIVE" } }) : null;
+        const [clock] = await tx.$queryRaw<{ milliseconds: bigint }[]>`SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint AS "milliseconds"`;
+        return { state: { lot, auction, vehicleOwnerId: vehicle.ownerId, latest, hasReceipt: receipt !== null, now: new Date(Number(clock.milliseconds)) },
+          available: (wallet?.balance ?? new Prisma.Decimal(0)).minus(reserved?._sum.amount ?? 0), held: position?.amount ?? new Prisma.Decimal(0), walletExists: !!wallet };
+      }, { isolationLevel: "RepeatableRead" });
+    },
     async list(lotId, query) {
       return client().$transaction(async tx => {
         if (!await tx.lot.findUnique({ where: { id: lotId }, select: { id: true } })) throw new HttpError(404, "Lote não encontrado.");
