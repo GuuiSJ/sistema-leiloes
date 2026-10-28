@@ -32,7 +32,9 @@ function price(value: unknown) {
   return {
     valor, marca: text(item.marca), modelo: text(item.modelo), anoModelo: integer(item.anoModelo),
     combustivel: text(item.combustivel), codigoFipe, mesReferencia: text(item.mesReferencia), tipoVeiculo,
-    siglaCombustivel: text(item.siglaCombustivel), dataConsulta: text(item.dataConsulta),
+    siglaCombustivel: text(item.siglaCombustivel),
+    // A BrasilAPI pode omitir este metadado. Quando presente, continua validado.
+    ...(item.dataConsulta === undefined ? {} : { dataConsulta: text(item.dataConsulta) }),
   };
 }
 

@@ -5,7 +5,7 @@ import { createElement as h } from 'react'
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router'
 
-let server, vehicles, fipe, Form, Confirmation, Page, App, Context, ThemeContext, createSession
+let server, vehicles, fipe, integration, Form, Confirmation, Page, App, Context, ThemeContext, createSession
 const originalFetch = globalThis.fetch
 const id = '11111111-1111-4111-8111-111111111111'
 const otherId = '22222222-2222-4222-8222-222222222222'
@@ -24,6 +24,7 @@ before(async () => {
   server = await createServer({ server: { middlewareMode: true, ws: false }, appType: 'custom' })
   vehicles = await server.ssrLoadModule('/src/services/vehicles.ts')
   fipe = await server.ssrLoadModule('/src/services/fipe.ts')
+  integration = await server.ssrLoadModule('/src/services/vehicle-fipe.ts')
   Form = (await server.ssrLoadModule('/src/components/auctioneer/VehicleForm.tsx')).VehicleForm
   const pages = await server.ssrLoadModule('/src/pages/AuctioneerVehiclePage.tsx')
   Page = pages.AuctioneerVehiclePage; Confirmation = pages.VehicleDeleteConfirmation
@@ -34,6 +35,83 @@ before(async () => {
 })
 afterEach(() => { globalThis.fetch = originalFetch })
 after(async () => { await server.close() })
+
+const selection = { brand: '1', model: '2', year: '2024-1' }
+async function appliedValues() {
+  globalThis.fetch = async () => Response.json(detail)
+  return integration.fipeVehicleValues(await fipe.getFipeDetails('1', '2', '2024-1', signal()), selection)
+}
+it('applies all contracted FIPE fields without deriving a version or overwriting manual content', async () => {
+  const original = { ...draft(), description: 'Descrição manual', version: 'Versão manual', imageUrls: 'https://example.test/manual.jpg' }
+  const values = await appliedValues()
+  assert.deepEqual(values, { brand: 'Marca', model: 'Modelo', year: '2024', fipeReferencePrice: '100000,01', fipeCode: '000001-1', fipeReferenceMonth: 'outubro de 2026', fipeBrandCode: '1', fipeModelCode: '2', fipeYearCode: '2024-1' })
+  const applied = { ...original, ...values }
+  for (const key of ['description', 'version', 'imageUrls']) assert.equal(applied[key], original[key])
+  const partial = { ...vehicles.vehicleDraft(), ...values }
+  for (const key of ['description', 'version', 'imageUrls']) assert.equal(partial[key], '')
+  assert.deepEqual(vehicles.validateVehicle(partial), {})
+})
+it('changing brand, model or year invalidates previous dependent selections', async () => {
+  const values = await appliedValues()
+  const details = { brand: values.brand, model: values.model, year: 2024, price: '100000.01', fipeCode: values.fipeCode, month: values.fipeReferenceMonth }
+  for (const [field, value, expected] of [
+    ['brand', '3', { brand: '3', model: '', year: '' }],
+    ['model', '4', { brand: '1', model: '4', year: '' }],
+    ['year', '2023-1', { brand: '1', model: '2', year: '2023-1' }],
+  ]) {
+    const next = integration.selectFipe(selection, field, value)
+    assert.deepEqual(next, expected)
+    assert.equal(integration.fipeVehicleValues(details, next), null)
+    assert.deepEqual(selection, { brand: '1', model: '2', year: '2024-1' })
+  }
+})
+it('rejects special years and FIPE text exceeding vehicle limits before applying', async () => {
+  await appliedValues()
+  const base = { brand: 'Marca', model: 'Modelo', year: 2024, price: '100000.01', fipeCode: '000001-1', month: 'outubro de 2026' }
+  assert.equal(integration.fipeVehicleValues({ ...base, year: 32000 }, { ...selection, year: '32000-1' }), null)
+  assert.equal(integration.fipeVehicleValues({ ...base, model: 'x'.repeat(151) }, selection), null)
+})
+it('FIPE failures and incomplete contracted responses preserve an editable manual draft', async () => {
+  const original = draft(), snapshot = { ...original }
+  for (const reply of [() => Response.json({}, { status: 503 }), () => { throw Error('offline') }, () => Response.json({ ...detail, mesReferencia: undefined })]) {
+    globalThis.fetch = async () => reply()
+    await assert.rejects(fipe.getFipeDetails('1', '2', '2024-1', signal()))
+    assert.deepEqual(original, snapshot)
+    assert.deepEqual(vehicles.validateVehicle(original), {})
+  }
+})
+it('sends the applied FIPE draft through POST and PATCH using only the existing contract (mocked)', async () => {
+  const values = await appliedValues()
+  const applied = { ...draft(), description: 'Descrição preservada', ...values }
+  for (const editing of [false, true]) {
+    let calls = 0
+    globalThis.fetch = async (url, options) => {
+      calls++
+      assert.equal(new URL(url).pathname, editing ? `/api/vehicles/${id}` : '/api/vehicles')
+      assert.equal(options.method, editing ? 'PATCH' : 'POST')
+      const body = JSON.parse(options.body)
+      assert.deepEqual(body, vehicles.vehicleInput(applied))
+      assert.equal(body.fipeReferencePrice, '100000.01')
+      assert.equal(body.description, 'Descrição preservada')
+      assert.deepEqual(body.imageUrls, vehicle.imageUrls)
+      return Response.json({ vehicle }, { status: editing ? 200 : 201 })
+    }
+    await (editing ? vehicles.updateVehicle(id, applied, 'fixture-token', signal()) : vehicles.createVehicle(applied, 'fixture-token', signal()))
+    assert.equal(calls, 1)
+  }
+})
+it('embeds optional FIPE inside create and edit forms without applying on open', () => {
+  globalThis.fetch = () => { throw Error('Opening the form must not consult or save') }
+  for (const editing of [false, true]) {
+    let applied = 0
+    const html = render(h(Form, { draft: draft(), errors: {}, editing, busy: false, blocked: false, change() {}, submit() {}, applyFipe() { applied++ } }))
+    assert.equal(applied, 0)
+    assert.equal((html.match(/<form /g) ?? []).length, 1)
+    assert.match(html, /<form[\s\S]*Preenchimento pela FIPE[\s\S]*name="brand"[\s\S]*<\/form>/)
+    assert.match(html, /sem garantia de valor de mercado/)
+    assert.match(html, /value="Marca"/)
+  }
+})
 
 it('requires brand, model and a valid year, matching backend limits', () => {
   const errors = vehicles.validateVehicle(vehicles.vehicleDraft())

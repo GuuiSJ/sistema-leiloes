@@ -1,8 +1,9 @@
 import { useId, type FormEvent } from 'react'
 import type { VehicleDraft, VehicleFields } from '../../services/vehicles'
 import { adminButton, adminInput } from './AdminFeedback'
+import { VehicleFipe } from './VehicleFipe'
 
-export function VehicleForm({ draft, errors, busy, blocked, editing, change, submit }: { draft: VehicleDraft; errors: VehicleFields; busy: boolean; blocked: boolean; editing: boolean; change: (field: keyof VehicleDraft, value: string) => void; submit: (event: FormEvent<HTMLFormElement>) => void }) {
+export function VehicleForm({ draft, errors, busy, blocked, editing, change, submit, applyFipe }: { draft: VehicleDraft; errors: VehicleFields; busy: boolean; blocked: boolean; editing: boolean; change: (field: keyof VehicleDraft, value: string) => void; submit: (event: FormEvent<HTMLFormElement>) => void; applyFipe?: (values: Partial<VehicleDraft>) => void }) {
   const prefix = useId()
   function field(name: keyof VehicleDraft, label: string, options: { max?: number; required?: boolean; multiline?: boolean; type?: string; hint?: string } = {}) {
     const id = `${prefix}-${name}`, error = errors[name]
@@ -11,6 +12,8 @@ export function VehicleForm({ draft, errors, busy, blocked, editing, change, sub
   }
   return <form aria-label={editing ? 'Editar veículo' : 'Cadastrar veículo'} onSubmit={submit} noValidate className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
     <fieldset disabled={busy || blocked} className="min-w-0 space-y-6 disabled:opacity-60"><legend className="mb-5 text-lg font-semibold">Dados do veículo</legend><p className="text-sm text-muted">* Campos obrigatórios</p>
+      {applyFipe && <VehicleFipe disabled={busy || blocked} apply={applyFipe} />}
+      <p className="text-sm text-muted">Confira os dados preenchidos pela FIPE ou preencha manualmente.</p>
       <div className="grid gap-5 sm:grid-cols-2">{field('brand', 'Marca', { required: true, max: 100 })}{field('model', 'Modelo', { required: true, max: 150 })}{field('year', 'Ano', { required: true, type: 'number' })}{field('version', 'Versão', { max: 150 })}</div>
       {field('description', 'Descrição', { multiline: true, max: 10000 })}
       {field('imageUrls', 'URLs das imagens', { multiline: true, hint: 'Até 20 URLs HTTP(S), uma por linha. Não há envio de arquivos nesta etapa.' })}

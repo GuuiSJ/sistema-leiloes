@@ -98,6 +98,42 @@ describe("Consultas FIPE HTTP (BrasilAPI simulada, sem banco)", () => {
     assert.equal(calls[0]!.url, "https://brasilapi.com.br/api/fipe/detalhes/v1/carros/21/123/1998-1");
   });
 
+  it("aceita detalhes e preços sem dataConsulta e omite o metadado sem fabricar uma data", async () => {
+    const { dataConsulta: _date, ...withoutDate } = samplePrice;
+    for (const path of ["/detalhes/carros/21/123/1998-1", "/preco/001004-9"]) {
+      const body = path.startsWith("/preco/") ? [withoutDate] : withoutDate;
+      handler = async () => json(body);
+      const response = await get(path);
+      assert.equal(response.status, 200);
+      const result = await response.json();
+      assert.deepEqual(result, body);
+      assert.equal(Object.hasOwn(Array.isArray(result) ? result[0] : result, "dataConsulta"), false);
+    }
+  });
+
+  it("continua rejeitando dataConsulta presente com tipo inválido ou texto vazio", async () => {
+    for (const dataConsulta of [null, 123, true, {}, [], "", "   "]) {
+      for (const path of ["/detalhes/carros/21/123/1998-1", "/preco/001004-9"]) {
+        const value = { ...samplePrice, dataConsulta };
+        handler = async () => json(path.startsWith("/preco/") ? [value] : value);
+        assert.equal((await get(path)).status, 502);
+      }
+    }
+  });
+
+  it("continua exigindo todos os campos essenciais mesmo sem dataConsulta", async () => {
+    const { dataConsulta: _date, ...withoutDate } = samplePrice;
+    for (const field of Object.keys(withoutDate)) {
+      for (const invalid of [undefined, null, typeof withoutDate[field as keyof typeof withoutDate] === "number" ? "1" : 1]) {
+        const value = { ...withoutDate, [field]: invalid };
+        for (const path of ["/detalhes/carros/21/123/1998-1", "/preco/001004-9"]) {
+          handler = async () => json(path.startsWith("/preco/") ? [value] : value);
+          assert.equal((await get(path)).status, 502, `${path}: ${field} = ${String(invalid)}`);
+        }
+      }
+    }
+  });
+
   it("lista tabelas de referência", async () => {
     handler = async () => json([{ codigo: 271, mes: "junho/2021 " }]);
     assert.deepEqual(await (await get("/tabelas")).json(), [{ codigo: 271, mes: "junho/2021 " }]);

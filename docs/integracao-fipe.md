@@ -121,6 +121,11 @@ Datas textuais e preços formatados são preservados. Não há conversão monet�
 para `Float`, definição de preço de lance ou gravação no banco. Campos externos
 desconhecidos são descartados; somente os campos esperados são retornados.
 
+`dataConsulta` é opcional nos detalhes e nos itens de preço: quando a BrasilAPI
+não o fornece, o campo é omitido do JSON, sem gerar uma data substituta. Quando
+presente, deve ser uma string não vazia; `null` e tipos inválidos são rejeitados.
+Os demais campos do exemplo continuam obrigatórios.
+
 ## Falhas e limites
 
 - Timeout de cinco segundos por consulta, incluindo leitura e parse do body. A

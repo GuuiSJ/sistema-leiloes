@@ -6,7 +6,6 @@ import type { Vehicle } from '../services/auctions'
 import { createVehicle, deleteVehicle, getVehicle, updateVehicle, validVehicleId, validateVehicle, vehicleDraft, VehicleError, type VehicleDraft, type VehicleFields } from '../services/vehicles'
 import { AdminFeedback, adminButton } from '../components/auctioneer/AdminFeedback'
 import { VehicleForm } from '../components/auctioneer/VehicleForm'
-import { VehicleFipe } from '../components/auctioneer/VehicleFipe'
 
 export function VehicleDeleteConfirmation({ vehicle, busy, confirm, cancel }: { vehicle: Vehicle; busy: boolean; confirm: () => void; cancel: () => void }) {
   const cancelButton = useRef<HTMLButtonElement>(null)
@@ -48,8 +47,7 @@ function VehicleEditor({ vehicle }: { vehicle?: Vehicle }) {
     <h2 className="text-2xl font-semibold tracking-tight">{vehicle ? 'Gerenciar veículo' : 'Cadastrar veículo'}</h2><p className="mb-6 mt-2 text-sm leading-6 text-muted">{vehicle ? 'A edição e a exclusão dependem de propriedade e dos vínculos e histórico do veículo, verificados pela plataforma.' : 'Preencha os dados do veículo e revise antes de cadastrar.'}</p>
     {failure && <div ref={errorBox} tabIndex={-1} role="alert" className="mb-5 rounded-xl border border-red-500/30 bg-surface p-5 text-sm leading-6"><p>{failure.message}</p>{failure.status === 401 && <Link to="/entrar" className={adminButton}>Entrar novamente</Link>}{failure.uncertain && <Link to="/area-leiloeiro/veiculos" className={`${adminButton} mt-3`}>Consultar listagem antes de continuar</Link>}</div>}
     {notice && <p role="status" className="mb-5 text-sm">{notice}</p>}
-    <VehicleFipe disabled={!!busy || blocked || confirmDelete} apply={values => { setDraft(current => ({ ...current, ...values })); setErrors({}); setNotice('Referência FIPE aplicada. Revise os campos antes de salvar.') }} />
-    <VehicleForm draft={draft} errors={errors} busy={busy === 'save'} blocked={blocked || !!busy || confirmDelete} editing={!!vehicle} change={change} submit={submit} />
+    <VehicleForm draft={draft} errors={errors} busy={busy === 'save'} blocked={blocked || !!busy || confirmDelete} editing={!!vehicle} change={change} submit={submit} applyFipe={values => { setDraft(current => ({ ...current, ...values })); setErrors({}); setNotice('Dados do veículo preenchidos pela consulta FIPE.') }} />
     {vehicle && <section aria-label="Exclusão do veículo" className="mt-6 rounded-2xl border border-line bg-surface p-6"><h3 className="font-semibold">Excluir veículo</h3><p className="mt-2 text-sm leading-6 text-muted">Somente o proprietário pode excluir. Veículos com lotes ou histórico vinculado não podem ser excluídos.</p>{confirmDelete ? <VehicleDeleteConfirmation vehicle={vehicle} busy={!!busy || blocked} confirm={() => void run('delete')} cancel={() => { setConfirmDelete(false); setTimeout(() => deleteButton.current?.focus(), 0) }} /> : <button ref={deleteButton} type="button" disabled={!!busy || blocked} className={`${adminButton} mt-4 text-red-600 dark:text-red-300`} onClick={() => setConfirmDelete(true)}>Excluir veículo</button>}</section>}
   </>
 }
