@@ -7,7 +7,7 @@ import { Prisma, type Wallet, type WalletTransaction } from "../src/generated/pr
 import { HttpError } from "../src/errors/http-error";
 import { createAuthenticate } from "../src/middlewares/authenticate";
 import { errorHandler } from "../src/middlewares/error-handler";
-import { getSimulatedCreditDiagnostics, requireSimulatedCreditEnvironment } from "../src/config/wallet";
+import { getSimulatedCreditDiagnostics, requireSimulatedCreditEnvironment, requireSimulatedCreditAuthorization } from "../src/config/wallet";
 import { createWalletRouter } from "../src/modules/wallet/wallet.routes";
 import type { WalletRepository } from "../src/modules/wallet/wallet.types";
 import { signAccessToken } from "../src/modules/auth/auth.tokens";
@@ -55,7 +55,7 @@ describe("Carteira HTTP (JWT real e persistência em memória)", () => {
   const demoEnv = (): NodeJS.ProcessEnv => ({ NODE_ENV: "development", ENABLE_SIMULATED_CREDITS: "true", DATABASE_URL: "postgresql://fixture:unused@localhost:5432/sistema_leiloes" });
   before(async () => {
     const app = express(); app.use(express.json());
-    app.use("/api/wallet", createWalletRouter(repository, createAuthenticate(auth, () => config), () => requireSimulatedCreditEnvironment(env)));
+    app.use("/api/wallet", createWalletRouter(repository, createAuthenticate(auth, () => config), userId => requireSimulatedCreditAuthorization(userId, env)));
     app.use(errorHandler);
     await new Promise<void>((resolve, reject) => { server = app.listen(0, "127.0.0.1", (e?: Error) => e ? reject(e) : resolve()); server.once("error", reject); });
     const address = server.address(); assert(address && typeof address !== "string"); base = `http://127.0.0.1:${address.port}/api/wallet`;
@@ -85,11 +85,27 @@ describe("Carteira HTTP (JWT real e persistência em memória)", () => {
     assert.deepEqual((await (await request("GET")).json()).wallet, { totalBalance: "100.10", reservedBalance: "30.03", availableBalance: "70.07" });
   });
   it("exige JWT e BIDDER em todos os endpoints", async () => {
-    for (const [method, path, body] of [["GET", "", undefined], ["GET", "/transactions", undefined], ["POST", "/credit", { amount: "10.00" }]] as const) {
+    for (const [method, path, body] of [["GET", "", undefined], ["GET", "/credit-capability", undefined], ["GET", "/transactions", undefined], ["POST", "/credit", { amount: "10.00" }]] as const) {
       assert.equal((await request(method, path, body, "")).status, 401);
       assert.equal((await request(method, path, body, auctioneer)).status, 403);
     }
     assert.equal(wallets.size, 0);
+  });
+  it("autoriza somente o BIDDER listado para demonstração em produção e não cria carteira ao consultar permissão", async () => {
+    env = { NODE_ENV: "production", ENABLE_PRODUCTION_DEMO_CREDITS: "true", PRODUCTION_DEMO_CREDIT_USER_IDS: `${bidder},${auctioneer}`, PRODUCTION_DEMO_CREDIT_LIMIT: "1000.00" };
+    const capability = await request("GET", "/credit-capability");
+    assert.equal(capability.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await capability.json(), { enabled: true, cumulativeLimit: "1000.00" });
+    assert.deepEqual(await (await request("GET", "/credit-capability", undefined, other)).json(), { enabled: false, cumulativeLimit: null });
+    assert.equal(wallets.size, 0);
+    assert.equal((await request("GET", "/credit-capability", undefined, auctioneer)).status, 403);
+    assert.equal((await credit("10.00", "denied", auctioneer)).status, 403);
+    assert.equal((await credit("10.00", "denied", other)).status, 403);
+    assert.equal((await credit()).status, 201);
+    assert.equal((await credit()).status, 200);
+    env.ENABLE_PRODUCTION_DEMO_CREDITS = "false";
+    assert.equal((await credit()).status, 403);
+    assert.equal(transactions.size, 1);
   });
   it("revalida perfil e usuário do token", async () => {
     users.get(bidder)!.role = "AUCTIONEER"; assert.equal((await request("GET")).status, 403);

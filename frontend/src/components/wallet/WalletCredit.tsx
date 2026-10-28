@@ -1,14 +1,24 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { formatMoney } from '../../services/formatters'
-import { clearPendingCredit, createWalletCreditAttempt, localCreditAllowed, parseCreditAmount, readPendingCredit, savePendingCredit, WalletCreditError, type PendingCredit } from '../../services/wallet-credit'
+import { clearPendingCredit, createWalletCreditAttempt, getCreditCapability, parseCreditAmount, readPendingCredit, savePendingCredit, WalletCreditError, type PendingCredit } from '../../services/wallet-credit'
 
 export function WalletCredit({ disabled, onSuccess }: { disabled: boolean; onSuccess: () => void }) {
   const auth = useAuth(), id = useId()
   const [open, setOpen] = useState(false), [value, setValue] = useState(''), [confirmedAmount, setConfirmedAmount] = useState<string | null>(null), [pending, setPending] = useState<PendingCredit | null>(null)
   const [ready, setReady] = useState(false), [busy, setBusy] = useState(false), [unavailable, setUnavailable] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState('')
   const active = useRef(true), sending = useRef(false), request = useRef<AbortController | null>(null), attempt = useRef<PendingCredit | null>(null)
-  const allowed = localCreditAllowed() && auth.status === 'authenticated' && auth.user?.role === 'BIDDER'
+  const [capability, setCapability] = useState<{ enabled: boolean; cumulativeLimit: string | null } | null>(null)
+  const allowed = capability?.enabled === true && auth.status === 'authenticated' && auth.user?.role === 'BIDDER'
+  useEffect(() => {
+    if (auth.status !== 'authenticated' || auth.user?.role !== 'BIDDER') return
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 12000)
+    void auth.withSession(getCreditCapability, controller.signal).then(result => {
+      if (!controller.signal.aborted) setCapability(result)
+    }).catch(() => { if (active.current) setCapability({ enabled: false, cumulativeLimit: null }) }).finally(() => clearTimeout(timer))
+    return () => { clearTimeout(timer); controller.abort() }
+  }, [auth.status, auth.user?.id, auth.user?.role, auth.withSession])
   useEffect(() => { active.current = true; return () => { active.current = false; request.current?.abort() } }, [])
   useEffect(() => {
     if (!allowed || !auth.user) return
@@ -19,7 +29,8 @@ export function WalletCredit({ disabled, onSuccess }: { disabled: boolean; onSuc
     } catch { setError('Não foi possível verificar tentativas anteriores. Consulte o histórico; o envio está bloqueado neste navegador.') }
   }, [allowed, auth.user?.id])
   if (auth.status !== 'authenticated' || auth.user?.role !== 'BIDDER') return null
-  if (!allowed) return <p className="text-sm leading-6 text-muted">Crédito de demonstração indisponível neste ambiente. Não há depósitos reais.</p>
+  if (!capability) return <p role="status" className="text-sm text-muted">Verificando disponibilidade do crédito de demonstração...</p>
+  if (!allowed) return <p className="text-sm leading-6 text-muted">Crédito de demonstração indisponível para esta conta ou ambiente. Não há depósitos reais.</p>
   async function credit() {
     if (sending.current || !ready || unavailable || !confirmedAmount || !auth.user) return
     sending.current = true; setBusy(true); setError(''); setMessage('')
@@ -46,7 +57,8 @@ export function WalletCredit({ disabled, onSuccess }: { disabled: boolean; onSuc
     } finally { sending.current = false; if (active.current) setBusy(false) }
   }
   return <section aria-label="Adicionar saldo de demonstração" className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
-    <h3 className="text-lg font-semibold">Saldo de demonstração</h3><p className="mt-3 text-sm leading-6 text-muted">Créditos simulados para testes locais. Sem depósito, cobrança ou valor monetário real. A disponibilidade depende da autorização do backend.</p>
+    <h3 className="text-lg font-semibold">Saldo de demonstração</h3><p className="mt-3 text-sm leading-6 text-muted">Créditos simulados para avaliação. Sem depósito, cobrança ou valor monetário real. A disponibilidade depende da autorização do backend.</p>
+    {capability.cumulativeLimit && <p className="mt-2 text-sm text-muted">Limite acumulado por conta: {formatMoney(capability.cumulativeLimit)}. Gastar saldo não renova esse limite.</p>}
     {message && <p role="status" className="mt-4 text-sm">{message}</p>}{error && <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-300">{error}</p>}
     {!open ? <button type="button" disabled={disabled || !ready || unavailable} onClick={() => { setOpen(true); setError(''); setMessage('') }} className="mt-5 min-h-12 rounded-lg bg-accent px-5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">Adicionar saldo</button> : confirmedAmount ? <div role="alertdialog" aria-labelledby={`${id}-confirm`} className="mt-5 rounded-xl border border-line bg-canvas p-5"><h4 id={`${id}-confirm`} className="font-semibold">Confirmar crédito simulado de {formatMoney(confirmedAmount)}?</h4><p className="mt-3 text-sm text-muted">{pending ? 'Repetir esta tentativa usa o mesmo valor e a mesma chave para evitar duplicidade.' : 'O valor será adicionado somente à carteira virtual de demonstração.'}</p><div className="mt-5 flex flex-wrap gap-3">{!pending && <button type="button" disabled={busy} className="min-h-11 rounded-lg border border-line px-4 text-sm" onClick={() => setConfirmedAmount(null)}>Voltar</button>}<button type="button" disabled={busy || disabled || !ready || unavailable} onClick={() => void credit()} className="min-h-11 rounded-lg bg-accent px-5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Adicionando...' : pending ? 'Repetir mesma tentativa' : 'Confirmar crédito simulado'}</button></div></div> : <form aria-label="Informar crédito simulado" className="mt-5" onSubmit={event => { event.preventDefault(); const amount = parseCreditAmount(value); if (!amount) { setError('Informe um valor positivo em reais, sem separador de milhar e com até duas casas decimais. Ex.: 1500,50.'); return } setError(''); setConfirmedAmount(amount) }}>
       <label htmlFor={id} className="block text-sm font-medium">Valor em reais (R$)</label><input id={id} value={value} onChange={event => setValue(event.target.value)} inputMode="decimal" type="text" placeholder="Ex.: 1500,50" disabled={!ready || unavailable} className="mt-2 min-h-12 w-full rounded-xl border border-line bg-canvas px-4" /><div className="mt-4 flex flex-wrap gap-3"><button disabled={disabled || !ready || unavailable} className="min-h-11 rounded-lg bg-accent px-5 text-sm font-semibold text-white disabled:opacity-50">Revisar crédito</button><button type="button" onClick={() => setOpen(false)} className="min-h-11 rounded-lg border border-line px-4 text-sm">Cancelar</button></div>

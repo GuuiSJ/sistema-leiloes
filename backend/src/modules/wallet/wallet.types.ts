@@ -5,6 +5,6 @@ export interface WalletSnapshot { wallet: Wallet; reserved: Prisma.Decimal }
 export interface WalletCreditResult extends WalletSnapshot { transaction: WalletTransaction; replayed: boolean }
 export interface WalletRepository {
   get(userId: string): Promise<WalletSnapshot>;
-  credit(userId: string, amount: Prisma.Decimal, key: string): Promise<WalletCreditResult>;
+  credit(userId: string, amount: Prisma.Decimal, key: string, cumulativeLimit?: Prisma.Decimal): Promise<WalletCreditResult>;
   transactions(userId: string, query: WalletQuery): Promise<{ transactions: WalletTransaction[]; total: number }>;
 }

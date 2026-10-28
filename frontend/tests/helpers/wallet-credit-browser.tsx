@@ -37,6 +37,7 @@ window.fetch = async (input, init) => {
   }
   if (method !== 'GET') throw Error('Only fixture credit may write')
   state.reads.push(url.pathname + url.search)
+  if (url.pathname === '/api/wallet/credit-capability') return Response.json({ enabled: mode !== 'unauthorized', cumulativeLimit: mode === 'unauthorized' ? null : '1000.00' })
   if (url.pathname === '/api/wallet') return Response.json({ wallet: balance() })
   if (url.pathname === '/api/wallet/transactions') return Response.json({ data: ledger.map(item => item.transaction).reverse(), pagination: { page: 1, limit: 10, total: ledger.length, totalPages: ledger.length ? 1 : 0 } })
   throw Error(`Unexpected request: ${url.pathname}`)

@@ -1,5 +1,6 @@
 import { Prisma, type WalletTransaction } from "../../generated/prisma/client";
-import { requireSimulatedCreditEnvironment } from "../../config/wallet";
+import { requireSimulatedCreditAuthorization } from "../../config/wallet";
+import { HttpError } from "../../errors/http-error";
 import type { WalletQuery, WalletRepository, WalletSnapshot } from "./wallet.types";
 import { validateCredit, validateKey } from "./wallet.validation";
 
@@ -10,11 +11,15 @@ function transactionView(t: WalletTransaction) {
   return { id: t.id, type: t.type, amount: t.amount.toFixed(2), balanceAfter: t.balanceAfter.toFixed(2), createdAt: t.createdAt, simulated: t.type === "CREDIT" && t.idempotencyKey.startsWith("demo-credit:") };
 }
 export class WalletService {
-  constructor(private readonly repository: WalletRepository, private readonly requireDemo: () => void = requireSimulatedCreditEnvironment) {}
+  constructor(private readonly repository: WalletRepository, private readonly requireDemo: (userId?: string) => string | void = requireSimulatedCreditAuthorization) {}
+  capability(userId: string) {
+    try { const limit = this.requireDemo(userId); return { enabled: true, cumulativeLimit: limit ?? null }; }
+    catch (error) { if (error instanceof HttpError && error.status === 403) return { enabled: false, cumulativeLimit: null }; throw error; }
+  }
   async get(userId: string) { return balanceView(await this.repository.get(userId)); }
   async credit(userId: string, amount: string, key: string) {
-    this.requireDemo();
-    const result = await this.repository.credit(userId, new Prisma.Decimal(validateCredit({ amount })), validateKey(key));
+    const limit = this.requireDemo(userId);
+    const result = await this.repository.credit(userId, new Prisma.Decimal(validateCredit({ amount })), validateKey(key), limit ? new Prisma.Decimal(limit) : undefined);
     return { wallet: balanceView(result), transaction: transactionView(result.transaction), replayed: result.replayed, simulated: true, message: "Crédito simulado de demonstração, sem depósito ou valor monetário real." };
   }
   async transactions(userId: string, query: WalletQuery) {

@@ -21,9 +21,17 @@ before(async () => {
 afterEach(() => { globalThis.fetch = originalFetch; if (originalWindow === undefined) delete globalThis.window; else globalThis.window = originalWindow })
 after(async () => { browser?.close(); await server?.close() })
 const allowLocal = () => { globalThis.window = { location: { hostname: 'localhost' } } }
-it('restricts the frontend to development and loopback frontend/API without changing backend flags', () => {
-  assert.equal(api.demoCreditEnvironment({ development: true, hostname: 'localhost', apiUrl: 'http://127.0.0.1:3000' }), true)
-  for (const change of [{ development: false }, { hostname: 'example.com' }, { apiUrl: 'https://api.example.com' }]) assert.equal(api.demoCreditEnvironment({ development: true, hostname: 'localhost', apiUrl: 'http://localhost:3000', ...change }), false)
+it('availability comes from authenticated backend authorization, with no public environment flag', async () => {
+  for (const enabled of [true, false]) {
+    const body = { enabled, cumulativeLimit: enabled ? '1000.00' : null }
+    globalThis.fetch = async (url, init) => {
+      assert.equal(new URL(url).pathname, '/api/wallet/credit-capability'); assert.equal(init.headers.Authorization, 'Bearer fixture-token'); assert.equal(init.cache, 'no-store')
+      return Response.json(body)
+    }
+    assert.deepEqual(await api.getCreditCapability('fixture-token', signal()), body)
+  }
+  globalThis.fetch = async () => Response.json({ enabled: 'true' })
+  await assert.rejects(api.getCreditCapability('fixture-token', signal()))
 })
 it('parses reais exactly and rejects ambiguous, nonpositive, overflow and malformed amounts', () => {
   for (const [value, expected] of [['100,50', '100.50'], ['0,01', '0.01'], ['100', '100.00'], ['9999999999999999,99', '9999999999999999.99']]) assert.equal(api.parseCreditAmount(value), expected)
@@ -57,11 +65,15 @@ it('disabled environment and malformed success cannot claim credit or leak backe
     await assert.rejects(api.createWalletCreditAttempt(attempt)('fixture-token', signal()), error => error.retrySameKey === true)
   }
 })
-it('public environment and invalid attempts are blocked before any POST', async () => {
+it('production frontend can send simulated credits and rejects invalid attempts before POST', async () => {
   globalThis.window = { location: { hostname: 'public.example.com' } }
-  globalThis.fetch = () => { throw Error('No network allowed') }
-  await assert.rejects(api.createWalletCreditAttempt(attempt)('fixture-token', signal()), error => error.unavailable)
+  globalThis.fetch = async () => Response.json(body, { status: 201 })
+  assert.deepEqual(await api.createWalletCreditAttempt(attempt)('fixture-token', signal()), body.wallet)
   assert.throws(() => api.createWalletCreditAttempt({ amount: '0.00', key: 'key' }))
+})
+it('cumulative cap rejection is definitive and allows correcting the amount without replaying a rejected operation', async () => {
+  globalThis.fetch = async () => Response.json({ message: 'Crédito excede o limite acumulado de demonstração desta conta.' }, { status: 409 })
+  await assert.rejects(api.createWalletCreditAttempt(attempt)('fixture-token', signal()), error => error.retrySameKey === false && /limite acumulado/.test(error.message))
 })
 it('duplicate concurrent calls share a locked operation and do not issue a second POST', async () => {
   allowLocal(); let release, calls = 0
@@ -124,4 +136,10 @@ it('Chromium: disabled backend, unavailable storage and AUCTIONEER never produce
   assert.equal(await browser.evaluate('window.creditTest.posts.length'), 0)
   await open('owner'); await browser.wait('document.body?.textContent?.includes("apenas para o perfil de participante")')
   assert.equal(await browser.evaluate(`${button('Adicionar saldo')} === undefined`), true)
+})
+it('Chromium: unauthorized account cannot see the credit form and makes no POST', options, async () => {
+  await open('unauthorized'); await browser.wait(`!!${button('Consultar carteira')}`); await click('Consultar carteira')
+  await browser.wait('document.body?.textContent?.includes("Crédito de demonstração indisponível para esta conta")')
+  assert.equal(await browser.evaluate(`${button('Adicionar saldo')} === undefined`), true)
+  assert.equal(await browser.evaluate('window.creditTest.posts.length'), 0)
 })

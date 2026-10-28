@@ -5,12 +5,14 @@ export interface PendingCredit { amount: string; key: string }
 export class WalletCreditError extends WalletError {
   constructor(message: string, status?: number, readonly retrySameKey = false, readonly unavailable = false) { super(message, status) }
 }
-export function demoCreditEnvironment({ development, hostname, apiUrl }: { development: boolean; hostname: string; apiUrl: string }) {
-  const local = ['localhost', '127.0.0.1', '[::1]', '::1']
-  try { return development && local.includes(hostname) && local.includes(new URL(apiUrl).hostname) } catch { return false }
-}
-export function localCreditAllowed() {
-  return typeof window !== 'undefined' && demoCreditEnvironment({ development: import.meta.env.DEV, hostname: window.location.hostname, apiUrl: API_BASE_URL })
+export async function getCreditCapability(token: string, signal: AbortSignal): Promise<{ enabled: boolean; cumulativeLimit: string | null }> {
+  const response = await fetch(`${API_BASE_URL}/api/wallet/credit-capability`, {
+    signal, credentials: 'omit', redirect: 'error', cache: 'no-store', headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) throw new WalletCreditError('Não foi possível verificar a disponibilidade do crédito de demonstração.', response.status)
+  const body: unknown = await response.json()
+  if (!record(body) || typeof body.enabled !== 'boolean' || !(body.cumulativeLimit === null || money(body.cumulativeLimit))) throw new WalletCreditError('Disponibilidade do crédito de demonstração não confirmada.')
+  return { enabled: body.enabled, cumulativeLimit: body.cumulativeLimit as string | null }
 }
 export function parseCreditAmount(value: string): string | null {
   if (!/^(0|[1-9]\d{0,15})(,\d{1,2})?$/.test(value.trim())) return null
@@ -40,7 +42,6 @@ export function createWalletCreditAttempt(attempt: PendingCredit) {
   const { amount, key } = attempt
   let sending = false
   return async (token: string, signal: AbortSignal): Promise<WalletSnapshot> => {
-    if (!localCreditAllowed()) throw new WalletCreditError('Crédito de demonstração indisponível neste ambiente. Não há depósitos reais.', 403, false, true)
     if (!token || /\s/.test(token)) throw new WalletCreditError('Entre novamente para adicionar saldo de demonstração.', 401, true)
     if (sending) throw new WalletCreditError('Um crédito já está sendo enviado.', undefined, true)
     if (signal.aborted) throw new WalletCreditError('Envio cancelado. Preserve esta tentativa para consultar ou repetir com segurança.', undefined, true)
@@ -54,10 +55,12 @@ export function createWalletCreditAttempt(attempt: PendingCredit) {
       })
       if (!response.ok) {
         const body: unknown = await response.json().catch(() => null)
-        const limit = response.status === 409 && record(body) && body.message === 'Crédito excede o limite de saldo da carteira.'
+        const cumulativeLimit = response.status === 409 && record(body) && body.message === 'Crédito excede o limite acumulado de demonstração desta conta.'
+        const limit = cumulativeLimit || (response.status === 409 && record(body) && body.message === 'Crédito excede o limite de saldo da carteira.')
         throw new WalletCreditError(response.status === 403 ? 'Crédito de demonstração indisponível. O ambiente não está autorizado ou seu perfil não permite esta operação. Confira no histórico qualquer tentativa anterior pendente.'
           : response.status === 401 ? 'Sua sessão expirou. Entre novamente para repetir a mesma tentativa.'
             : response.status === 400 ? 'O crédito não foi aceito. Confira o valor informado.'
+              : cumulativeLimit ? 'O valor excede o limite acumulado de demonstração desta conta. Informe um valor menor ou consulte o histórico.'
               : limit ? 'O valor excede o limite de saldo da carteira. Informe um valor menor.'
                 : response.status === 409 ? 'A operação foi bloqueada. Consulte o histórico e preserve esta tentativa antes de repetir.'
                 : 'Não foi possível confirmar o crédito. Repita somente esta mesma tentativa.', response.status, response.status !== 400 && !limit, response.status === 403)

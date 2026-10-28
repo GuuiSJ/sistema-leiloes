@@ -48,7 +48,7 @@ export function createWalletRepository(client: () => PrismaClient = getPrisma): 
   }
   return {
     get(userId) { return transaction(async tx => snapshot(tx, await ownWallet(tx, userId))); },
-    credit(userId, amount, key) {
+    credit(userId, amount, key, cumulativeLimit) {
       return transaction(async tx => {
         const wallet = await ownWallet(tx, userId);
         // Key is scoped by authenticated user and operation; <= 113 characters.
@@ -59,6 +59,15 @@ export function createWalletRepository(client: () => PrismaClient = getPrisma): 
           return { ...await snapshot(tx, wallet), transaction: previous, replayed: true };
         }
         await snapshot(tx, wallet);
+        if (cumulativeLimit) {
+          const credited = await tx.walletTransaction.aggregate({
+            where: { walletId: wallet.id, type: "CREDIT", idempotencyKey: { startsWith: "demo-credit:" } },
+            _sum: { amount: true },
+          });
+          if ((credited._sum.amount ?? new Prisma.Decimal(0)).plus(amount).greaterThan(cumulativeLimit)) {
+            throw new HttpError(409, "Crédito excede o limite acumulado de demonstração desta conta.");
+          }
+        }
         const balance = wallet.balance.plus(amount);
         if (balance.greaterThan(maxBalance)) throw new HttpError(409, "Crédito excede o limite de saldo da carteira.");
         const updated = await tx.wallet.update({ where: { id: wallet.id }, data: { balance, version: { increment: 1 } } });

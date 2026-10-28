@@ -8,7 +8,7 @@ Aplicação full stack desenvolvida para o desafio técnico **Elite Dev da Verze
 - Cadastro e edição de veículos, imagens por URL e preenchimento confirmado pela FIPE/BrasilAPI, com alternativa manual.
 - Cadastro de leilões e lotes, publicação com confirmação, abertura automática e painel de resultados do leiloeiro.
 - Sala de lances: veículo, valores, histórico paginado, situação do participante, contagem estimada com relógio do servidor, Socket.IO e reconexão.
-- Carteira com saldo total, reservado e disponível; crédito **simulado somente em desenvolvimento local autorizado**.
+- Carteira com saldo total, reservado e disponível; crédito **exclusivamente simulado**, local autorizado ou demonstração de produção com contas explicitamente autorizadas e teto acumulado.
 - Reserva de saldo, lances com idempotência, prorrogação contra lances de última hora e liquidação transacional.
 - Meus arremates, comprovante público compartilhável e auditoria pública com verificação da cadeia de eventos.
 - Layout responsivo, interface em português brasileiro e temas claro/escuro.
@@ -105,7 +105,7 @@ Os testes comuns usam repositórios/HTTP/eventos simulados; os testes PostgreSQL
 7. A edição depende de status, início ainda futuro, propriedade e ausência de histórico impeditivo. LEGACY permanece protegido; UTC_V2 não converte registros históricos.
 8. O preço FIPE é referência. Anos especiais não são convertidos artificialmente em anos convencionais.
 9. Auditoria pública verifica a cadeia de eventos; o histórico público de lances é uma consulta separada, não uma assinatura individual de todos os lances. Nenhuma tela pública divulga dados pessoais do vencedor.
-10. Em produção, créditos simulados estão bloqueados. Novas contas começam sem saldo; para avaliação, preparar previamente contas fictícias com saldo conforme o [procedimento de demonstração](docs/deploy.md#dados-de-demonstração).
+10. Em produção, créditos simulados ficam desabilitados por padrão. Para avaliação, o responsável pode autorizar exclusivamente IDs de contas BIDDER fictícias com limite acumulado, conforme a [configuração de demonstração](docs/deploy.md#créditos-simulados-controlados-na-render). Novas contas não são autorizadas automaticamente.
 
 ## Deploy gratuito e limitações
 
@@ -119,4 +119,4 @@ Foi utilizada assistência de IA por meio do Codex para inspeção de contratos,
 
 ## Situação da entrega
 
-Funcionalidades implementadas e verificadas localmente. Pendem a criação/configuração dos serviços gratuitos pelo responsável, preparação/importação autorizada dos dados fictícios, fornecimento privado das contas de avaliação e validação final no domínio publicado. Não existe seed remoto pronto nem script para liberar créditos públicos; uma base vazia não possui usuário leiloeiro ou saldo de avaliação.
+Funcionalidades implementadas e verificadas localmente. Pendem a configuração dos serviços gratuitos pelo responsável, preparação autorizada das contas fictícias, fornecimento privado das contas de avaliação e validação final no domínio publicado. Não existe seed remoto pronto; uma base vazia não possui usuário leiloeiro ou saldo de avaliação. O crédito simulado controlado exige habilitação explícita, lista de IDs e teto acumulado; não libera créditos para o público geral.

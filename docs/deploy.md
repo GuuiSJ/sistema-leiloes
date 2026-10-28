@@ -27,6 +27,9 @@ Configure `NODE_VERSION=24.18.0` nos dois serviços, a versão verificada localm
 | `FRONTEND_URL` | Origem HTTPS exata do Static Site, por exemplo `https://NOME-DO-FRONTEND.onrender.com`, sem barra final ou caminho |
 | `AUCTION_TEMPORAL_MODE` | `UTC_V2` |
 | `ENABLE_SIMULATED_CREDITS` | `false` |
+| `ENABLE_PRODUCTION_DEMO_CREDITS` | `false` por padrão; `true` somente para avaliação controlada |
+| `PRODUCTION_DEMO_CREDIT_USER_IDS` | Lista privada de UUIDs de contas BIDDER fictícias autorizadas, separados por vírgula; vazia bloqueia |
+| `PRODUCTION_DEMO_CREDIT_LIMIT` | Teto acumulado por conta, por exemplo `1000.00`; obrigatório no modo de demonstração |
 | `NODE_VERSION` | `24.18.0`, seleção do runtime/build Render |
 | `PORT` | Deixar a Render fornecer; o servidor já usa essa variável e escuta sem fixar localhost |
 
@@ -83,7 +86,18 @@ Express e Socket.IO usam o mesmo servidor/porta; não configurar uma segunda por
 - `frontendOrigin()` é compartilhado pelo CORS Express e Socket.IO; aceita uma origem configurada. Não usar `*`, lista separada por vírgulas, URL com caminho ou barra final.
 - O JWT é enviado em `Authorization: Bearer`, sem cookies. O middleware CORS permite o preflight dos headers necessários, incluindo `Idempotency-Key`.
 - Socket.IO usa a origem HTTPS da API (WSS quando transportado por WebSocket), sem token nas notificações públicas. A origem do navegador também é validada no handshake WebSocket. Domínios de preview diferentes não são liberados automaticamente.
-- Mudança de configuração exige reiniciar o backend. Não definir `NODE_ENV=development` na Render para liberar crédito; produção continua bloqueada mesmo com flag habilitada.
+- Mudança de configuração exige reiniciar o backend. Não definir `NODE_ENV=development` na Render para liberar crédito. A flag local `ENABLE_SIMULATED_CREDITS` não libera produção.
+
+## Créditos simulados controlados na Render
+
+1. Mantenha `NODE_ENV=production` e `ENABLE_SIMULATED_CREDITS=false`.
+2. Escolha contas **BIDDER exclusivamente fictícias** e obtenha seus UUIDs pela resposta autenticada de `/api/auth/me`. Confira a identidade de cada conta; não autorize usuários comuns, nem use e-mails, curingas ou IDs enviados pelo frontend.
+3. Em Environment da API, configure `ENABLE_PRODUCTION_DEMO_CREDITS=true`, `PRODUCTION_DEMO_CREDIT_USER_IDS=UUID_DA_CONTA_1,UUID_DA_CONTA_2` e `PRODUCTION_DEMO_CREDIT_LIMIT=1000.00` (substitua os placeholders por UUIDs válidos; valor em reais, ponto e duas casas). Reinicie a API pelo procedimento normal da Render. Não coloque essas configurações em variáveis `VITE_*`.
+4. Com o frontend atualizado, entre na conta autorizada → Minha conta → Carteira virtual → Consultar carteira → Adicionar saldo. Informe o valor, revise e confirme. O frontend consulta `GET /api/wallet/credit-capability` com JWT; conta não autorizada não recebe formulário. `POST /api/wallet/credit` revalida permissão, valor e chave de idempotência independentemente da interface.
+5. O teto considera a soma histórica de movimentos `CREDIT` identificados como `demo-credit:`, inclusive créditos locais importados. Gastar saldo, reiniciar a API ou repetir uma operação não renova o limite. A verificação ocorre sob o lock da carteira, na transação serializável. A repetição confirmada da mesma chave/valor retorna o movimento existente sem novo crédito; outra quantia com a mesma chave é conflito.
+6. Para encerrar a avaliação, defina `ENABLE_PRODUCTION_DEMO_CREDITS=false` e reinicie. Uma configuração ausente/inválida ou retirada da lista bloqueia novos envios, inclusive tentativas pendentes; consulte o histórico dessas tentativas antes de qualquer nova operação. Não aumente o teto automaticamente.
+
+Não há depósito, pagamento, saque ou dinheiro real. Este modo deve ser usado somente em uma instância com dados fictícios. A lista autoriza IDs explicitamente; ela não detecta por si só se uma conta pertence a uma pessoa real. Não compartilhe senhas ou tokens no README. Contas fora da lista seguem bloqueadas, mesmo com a flag ligada.
 
 ## Dados de demonstração
 
@@ -112,7 +126,7 @@ pg_restore --no-owner --no-acl --single-transaction --exit-on-error --dbname="$D
 
 Não executar migrações depois do restore como tentativa automática de correção. Primeiro conferir schema, migrações e preflight. Não importar subconjuntos isolados de carteiras/lances sem plano de integridade. Um dump antigo não se torna atual apenas por existir em `backups/`; os backups históricos locais não são seeds de produção aprovados.
 
-Contas públicas novas continuarão sem saldo e sem botão de crédito no build público. Avaliadores devem usar contas fictícias previamente financiadas; não há reposição ilimitada de créditos em produção. Falta preparar e autorizar esse conjunto de dados, não alterar as flags de segurança.
+Contas públicas novas continuarão sem saldo e sem botão de crédito. Avaliadores podem usar contas fictícias previamente financiadas ou os IDs explicitamente autorizados no modo acima; não há reposição ilimitada de créditos em produção. Não é necessário importar uma base apenas para disponibilizar créditos controlados.
 
 ## 7. Suspensão gratuita e worker
 
